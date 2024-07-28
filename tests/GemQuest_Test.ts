@@ -1,6 +1,5 @@
 import {
   Program,
-  AnchorError,
   Wallet,
   BN,
   AnchorProvider,
@@ -10,8 +9,7 @@ import {
 } from "@coral-xyz/anchor";
 import { Gemquest } from "../target/types/gemquest";
 import { assert, expect } from "chai";
-import { findProgramAddressSync } from "@project-serum/anchor/dist/cjs/utils/pubkey";
-import { Keypair, PublicKey, sendAndConfirmTransaction } from "@solana/web3.js";
+import { Keypair, PublicKey } from "@solana/web3.js";
 import {
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -20,10 +18,9 @@ import {
   getAccount,
   unpackAccount,
   Account,
-  createAssociatedTokenAccount,
   getOrCreateAssociatedTokenAccount,
 } from "@solana/spl-token";
-import { collectionDetailsToggle } from "@metaplex-foundation/mpl-token-metadata";
+import { MPL_TOKEN_METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata";
 
 describe("***** GemQuest Unit TESTS ******", () => {
   let ADMIN: Wallet;
@@ -34,8 +31,11 @@ describe("***** GemQuest Unit TESTS ******", () => {
   let MINT_TOKEN_ACCOUNT: Keypair;
   let MINT_NFT_ACCOUNT: Keypair;
 
+  // const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
+  //   "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+  // );
   const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
-    "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+    MPL_TOKEN_METADATA_PROGRAM_ID
   );
 
   before(async () => {

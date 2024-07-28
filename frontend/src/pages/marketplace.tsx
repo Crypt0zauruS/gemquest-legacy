@@ -7,7 +7,7 @@ import Loader from "../components/Loader";
 import { useRouter } from "next/router";
 import RPC from "../services/solanaRPC";
 import { ipfsGateway, gemAddresses, gemTypes } from "../utils";
-import { LAMPORTS_PER_SOL, PublicKey } from "@solana/web3.js";
+import { PublicKey } from "@solana/web3.js";
 import Logout from "../components/Logout";
 
 interface LoginProps {
@@ -27,6 +27,11 @@ interface Nft {
   properties?: {
     gem_cost?: number;
   };
+}
+
+interface GemApproval {
+  [key: number]: number;
+  [refund: string]: number;
 }
 
 type ApprovedGems = {
@@ -108,11 +113,10 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
       setTotalGems(
         gems.gem1 * 1 + gems.gem5 * 5 + gems.gem10 * 10 + gems.gem20 * 20
       );
-      console.log(nftMetadata);
       setNftMetadata(nftMetadata);
       setGemsMetadata(gemsMetadata);
       setNftByUser(nftByUser);
-      console.table({ gems, nftMetadata, gemsMetadata, nftByUser });
+      // console.table({ gems, nftMetadata, gemsMetadata, nftByUser });
     } catch (err) {
       setError("Failed to fetch data");
       console.error(err);
@@ -189,90 +193,109 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
     return fetch;
   };
 
-  // const checkTokenAllowance = async (
-  //   rpc: RPC,
-  //   userWallet: string,
-  //   gemTypes: { type: string; value: number }[]
-  // ) => {
-  //   let attempts = 0;
-  //   const maxAttempts = 20; // Maximum number of attempts
-  //   const interval = 2000; // Interval between attempts in milliseconds
-
-  //   while (attempts < maxAttempts) {
-  //     let allApproved = true;
-  //     for (const gemType of gemTypes) {
-  //       const mintAddress = gemAddresses[gemType.value as 1 | 5 | 10 | 20];
-  //       const accountInfo = await rpc.checkApproveToken(
-  //         new PublicKey(userWallet),
-  //         new PublicKey(mintAddress)
-  //       );
-  //       if (accountInfo < gemType.value) {
-  //         allApproved = false;
-  //         break;
-  //       }
-  //     }
-  //     if (allApproved) {
-  //       return true;
-  //     }
-  //     attempts++;
-  //     await new Promise((resolve) => setTimeout(resolve, interval));
-  //   }
-  //   return false;
-  // };
-
   const approveRequiredGems = async (
     rpc: RPC,
     userWallet: string,
     gemCost: number
-  ) => {
-    // Get already approved gems
+  ): Promise<GemApproval> => {
+    gemCost = Math.ceil(gemCost);
+
     let approvedGems = await checkAllowance(rpc, userWallet, gemTypes);
-    // Sort gemTypes by value in descending order
-    gemTypes.sort((a, b) => b.value - a.value);
-    let remainingCost = gemCost;
-    for (const gemType of gemTypes) {
-      const gemAmount = userGems[gemType.type];
-      if (gemAmount > 0) {
-        const alreadyApproved = Number(approvedGems[gemType.value] || 0n);
-        const gemsNeeded = Math.max(
-          Math.floor((remainingCost - alreadyApproved) / gemType.value),
-          0
-        );
 
-        const gemsToApprove = Math.min(gemsNeeded, gemAmount);
-        if (gemsToApprove > 0) {
-          const gemPublicKey = new PublicKey(
-            gemAddresses[gemType.value as 1 | 5 | 10 | 20]
-          );
-          console.log("Approving", gemsToApprove, gemPublicKey);
-          await rpc.approveTokenBurn(gemsToApprove, gemPublicKey);
-          remainingCost -= gemsToApprove * gemType.value;
-        }
-      }
-      if (remainingCost <= 0) break;
-    }
-    // Re-check the allowances after attempting to approve more gems
-    approvedGems = await checkAllowance(rpc, userWallet, gemTypes);
-    // Calculate the new remaining cost based on the latest approvals
-    remainingCost =
-      gemCost -
-      gemTypes.reduce((acc, gemType) => {
-        const approvedAmount = Number(approvedGems[gemType.value] || 0n);
-        return (
-          acc + Math.min(approvedAmount, userGems[gemType.type] * gemType.value)
-        );
-      }, 0);
+    const totalGemValue = gemTypes.reduce(
+      (acc, gemType) =>
+        acc + Math.floor(userGems[gemType.type]) * gemType.value,
+      0
+    );
 
-    if (
-      remainingCost > 0 &&
-      gemTypes.every(
-        (gemType) =>
-          Number(approvedGems[gemType.value] || 0n) >=
-          userGems[gemType.type] * gemType.value
-      )
-    ) {
+    if (totalGemValue < gemCost) {
       throw new Error("Not enough gems to cover the cost");
     }
+
+    const gemsToApprove: GemApproval = {};
+    let remainingCost = gemCost;
+
+    // Sort gemTypes by value in descending order
+    gemTypes.sort((a, b) => b.value - a.value);
+
+    // First pass: try to pay with exact amounts using larger denominations first
+    for (const gemType of gemTypes) {
+      const availableGems = Math.floor(userGems[gemType.type]);
+      const gemsNeeded = Math.floor(remainingCost / gemType.value);
+      const gemsToUse = Math.min(gemsNeeded, availableGems);
+
+      if (gemsToUse > 0) {
+        gemsToApprove[gemType.value] = gemsToUse;
+        remainingCost -= gemsToUse * gemType.value;
+      }
+
+      if (remainingCost === 0) break;
+    }
+
+    // If we couldn't pay exactly, use the next larger denomination
+    if (remainingCost > 0) {
+      for (const gemType of gemTypes) {
+        const availableGems = Math.floor(userGems[gemType.type]);
+        const gemsAlreadyUsed = gemsToApprove[gemType.value] || 0;
+
+        if (availableGems > gemsAlreadyUsed) {
+          gemsToApprove[gemType.value] =
+            (gemsToApprove[gemType.value] || 0) + 1;
+          remainingCost = 0;
+          break;
+        }
+      }
+    }
+
+    if (remainingCost > 0) {
+      throw new Error("Unable to find a valid combination of gems for payment");
+    }
+
+    // Calculate initial overpayment
+    let overpayment =
+      Object.entries(gemsToApprove).reduce((acc, [value, count]) => {
+        return acc + parseInt(value) * count;
+      }, 0) - gemCost;
+
+    // Sort gemTypes by value in ascending order for adjustment
+    gemTypes.sort((a, b) => a.value - b.value);
+
+    // Adjust overpayment starting from smallest denomination
+    for (const gemType of gemTypes) {
+      const gemValue = gemType.value;
+      while (gemsToApprove[gemValue] > 0 && overpayment - gemValue >= 0) {
+        gemsToApprove[gemValue]--;
+        overpayment -= gemValue;
+      }
+      if (overpayment === 0) break;
+    }
+
+    gemsToApprove.refund = overpayment;
+
+    // Remove any zero counts
+    for (const [value, count] of Object.entries(gemsToApprove)) {
+      if (count === 0 && value !== "refund") {
+        delete gemsToApprove[value as any as 1 | 5 | 10 | 20];
+      }
+    }
+
+    // Approve the calculated gems
+    for (const [gemValue, gemCount] of Object.entries(gemsToApprove)) {
+      if (gemValue !== "refund" && gemCount > 0) {
+        const gemPublicKey = new PublicKey(
+          gemAddresses[gemValue as any as 1 | 5 | 10 | 20]
+        );
+        console.log(`Approving ${gemCount} gems of value ${gemValue}`);
+        await rpc.approveTokenBurn(gemCount, gemPublicKey);
+      }
+    }
+    // reintroduce zero counts for a corrected formatted object
+    for (const gemType of gemTypes) {
+      if (!gemsToApprove[gemType.value]) {
+        gemsToApprove[gemType.value] = 0;
+      }
+    }
+    return gemsToApprove;
   };
 
   const handleBuyNFT = async (address: string) => {
@@ -293,32 +316,8 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
       const accounts = await rpc.getAccounts();
       const userWallet = accounts[0];
       const gemCost = selectedNft?.metadata?.properties?.gem_cost;
-      //await rpc.approveTokenBurn(gemCost);
-      await approveRequiredGems(rpc, userWallet, gemCost);
+      const burnAndRefund = await approveRequiredGems(rpc, userWallet, gemCost);
       toast.dismiss();
-
-      // TODO: Investigate, the TX is finalized but the token allowance is not updated
-      // We need to wait a little
-      // await new Promise(resolve => setTimeout(resolve, 5000));
-      // await rpc.checkApproveToken();
-      // await new Promise(resolve => setTimeout(resolve, 5000));
-      // await rpc.checkApproveToken();
-      // Vérifier l'allocation des jetons
-
-      // const accounts = await rpc.getAccounts();
-      // const userWallet = accounts[0];
-      // const mintAddress = new PublicKey(gemAddresses[1]);
-      // const allowanceUpdated = await checkTokenAllowance(
-      //   rpc,
-      //   userWallet,
-      //   mintAddress,
-      //   gemCost
-      // );
-
-      // if (!allowanceUpdated) {
-      //   throw new Error("Token allowance not updated in time");
-      // }
-
       toast.success(`Burn GEMS tokens approved ! \n`, {
         theme: "dark",
         position: "top-right",
@@ -329,7 +328,7 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
         draggable: false,
         progress: undefined,
       });
-
+      console.log(burnAndRefund);
       toast.loading(`Minting ${selectedNft?.metadata?.name} NFT ...`, {
         theme: "dark",
         position: "top-right",
@@ -340,7 +339,11 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
         draggable: false,
         progress: undefined,
       });
-      await rpc.burnTokenTransferNFT(address, gemCost);
+      await rpc.burnTokenTransferNFT(
+        address,
+        gemCost,
+        burnAndRefund as GemApproval
+      );
       toast.dismiss();
       toast.success(`NFT ! ${selectedNft?.metadata?.name} minted \n`, {
         theme: "dark",

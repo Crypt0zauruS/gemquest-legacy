@@ -1,6 +1,7 @@
 
 use anchor_lang::prelude::*;
-declare_id!("4MUuZnYgakTqerEBjsD783s4QP2trwyy2KWZ9SXJdffZ");
+
+declare_id!("55DGY73Wa84msrQsGmWumQiM8RHUbhT3D7wzqUx7Rpdz");
 
 pub mod instructions;
 
@@ -46,6 +47,6 @@ pub mod gemquest {
     }
 
     pub fn burn_token_transfer_nft(ctx: Context<TransferToken>, nft_price: u64) -> Result<()> {
-        instructions::burn_token_transfer_nft::burn_token_transfer_nft(ctx, nft_price)
+        instructions::burn_token_transfer_nft::burn_token_transfer_nft(ctx, nft_price )
     }
 }

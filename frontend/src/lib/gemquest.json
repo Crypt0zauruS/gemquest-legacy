@@ -1,5 +1,5 @@
 {
-  "address": "4MUuZnYgakTqerEBjsD783s4QP2trwyy2KWZ9SXJdffZ",
+  "address": "55DGY73Wa84msrQsGmWumQiM8RHUbhT3D7wzqUx7Rpdz",
   "metadata": {
     "name": "gemquest",
     "version": "0.1.0",
@@ -70,6 +70,9 @@
         },
         {
           "name": "to",
+          "docs": [
+            "This account can be optionally not provided by checking if it's default"
+          ],
           "writable": true
         },
         {
@@ -686,13 +689,23 @@
   "errors": [
     {
       "code": 6000,
-      "name": "UnauthorizedMinting",
-      "msg": "Unauthorized minting attempt."
+      "name": "InvalidInput",
+      "msg": "Invalid input provided."
     },
     {
       "code": 6001,
-      "name": "InvalidMintAmount",
-      "msg": "Mint amount must not be equal to 0."
+      "name": "InvalidPrice",
+      "msg": "Invalid price provided."
+    },
+    {
+      "code": 6002,
+      "name": "InsufficientBalance",
+      "msg": "Insufficient balance."
+    },
+    {
+      "code": 6003,
+      "name": "Unauthorized",
+      "msg": "Unauthorized access."
     }
   ],
   "types": [
