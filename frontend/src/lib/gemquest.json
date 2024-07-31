@@ -1,5 +1,5 @@
 {
-  "address": "55DGY73Wa84msrQsGmWumQiM8RHUbhT3D7wzqUx7Rpdz",
+  "address": "D4y8N3ndz7YgEM4jR9DPWN6HsdWmfNwNnsJFkNKLzvdh",
   "metadata": {
     "name": "gemquest",
     "version": "0.1.0",
@@ -7,6 +7,57 @@
     "description": "Created with Anchor"
   },
   "instructions": [
+    {
+      "name": "activate_ticket",
+      "discriminator": [
+        110,
+        8,
+        92,
+        34,
+        61,
+        23,
+        0,
+        151
+      ],
+      "accounts": [
+        {
+          "name": "ticket_status_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  117,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "ticket_status_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": []
+    },
     {
       "name": "approve_token",
       "discriminator": [
@@ -323,6 +374,247 @@
       ]
     },
     {
+      "name": "create_ticket_nft",
+      "discriminator": [
+        167,
+        132,
+        34,
+        107,
+        42,
+        117,
+        214,
+        214
+      ],
+      "accounts": [
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "admin",
+          "writable": true
+        },
+        {
+          "name": "initial_price_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  105,
+                  116,
+                  105,
+                  97,
+                  108,
+                  95,
+                  112,
+                  114,
+                  105,
+                  99,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "metadata_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  109,
+                  101,
+                  116,
+                  97,
+                  100,
+                  97,
+                  116,
+                  97
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "token_metadata_program"
+              },
+              {
+                "kind": "account",
+                "path": "mint_nft_account"
+              }
+            ],
+            "program": {
+              "kind": "account",
+              "path": "token_metadata_program"
+            }
+          }
+        },
+        {
+          "name": "mint_nft_account",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "associated_nft_token_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "account",
+                "path": "payer"
+              },
+              {
+                "kind": "const",
+                "value": [
+                  6,
+                  221,
+                  246,
+                  225,
+                  215,
+                  101,
+                  161,
+                  147,
+                  217,
+                  203,
+                  225,
+                  70,
+                  206,
+                  235,
+                  121,
+                  172,
+                  28,
+                  180,
+                  133,
+                  237,
+                  95,
+                  91,
+                  55,
+                  145,
+                  58,
+                  140,
+                  245,
+                  133,
+                  126,
+                  255,
+                  0,
+                  169
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_nft_account"
+              }
+            ],
+            "program": {
+              "kind": "const",
+              "value": [
+                140,
+                151,
+                37,
+                143,
+                78,
+                36,
+                137,
+                241,
+                187,
+                61,
+                16,
+                41,
+                20,
+                142,
+                13,
+                131,
+                11,
+                90,
+                19,
+                153,
+                218,
+                255,
+                16,
+                132,
+                4,
+                142,
+                123,
+                216,
+                219,
+                233,
+                248,
+                89
+              ]
+            }
+          }
+        },
+        {
+          "name": "ticket_status_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  117,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "mint_nft_account"
+              }
+            ]
+          }
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "token_metadata_program",
+          "address": "metaqbxxUerdq28cj1RbAWkYQm3ybzjb6a8bt518x1s"
+        },
+        {
+          "name": "associated_token_program",
+          "address": "ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL"
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        },
+        {
+          "name": "rent",
+          "address": "SysvarRent111111111111111111111111111111111"
+        }
+      ],
+      "args": [
+        {
+          "name": "nft_name",
+          "type": "string"
+        },
+        {
+          "name": "nft_symbol",
+          "type": "string"
+        },
+        {
+          "name": "nft_uri",
+          "type": "string"
+        }
+      ]
+    },
+    {
       "name": "create_token",
       "discriminator": [
         84,
@@ -409,6 +701,144 @@
           "type": "string"
         }
       ]
+    },
+    {
+      "name": "get_initial_price",
+      "discriminator": [
+        59,
+        62,
+        75,
+        187,
+        222,
+        51,
+        23,
+        73
+      ],
+      "accounts": [
+        {
+          "name": "initial_price_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  105,
+                  116,
+                  105,
+                  97,
+                  108,
+                  95,
+                  112,
+                  114,
+                  105,
+                  99,
+                  101
+                ]
+              }
+            ]
+          }
+        }
+      ],
+      "args": [],
+      "returns": "u64"
+    },
+    {
+      "name": "get_ticket_status",
+      "discriminator": [
+        182,
+        111,
+        211,
+        101,
+        233,
+        240,
+        52,
+        225
+      ],
+      "accounts": [
+        {
+          "name": "ticket_status_account",
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  116,
+                  105,
+                  99,
+                  107,
+                  101,
+                  116,
+                  95,
+                  115,
+                  116,
+                  97,
+                  116,
+                  117,
+                  115
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "ticket_status_account"
+              }
+            ]
+          }
+        }
+      ],
+      "args": []
+    },
+    {
+      "name": "initialize_initial_price",
+      "discriminator": [
+        175,
+        179,
+        6,
+        81,
+        118,
+        36,
+        26,
+        129
+      ],
+      "accounts": [
+        {
+          "name": "initial_price_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  105,
+                  116,
+                  105,
+                  97,
+                  108,
+                  95,
+                  112,
+                  114,
+                  105,
+                  99,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
     },
     {
       "name": "initialize_program",
@@ -656,9 +1086,74 @@
           "type": "u64"
         }
       ]
+    },
+    {
+      "name": "update_initial_price",
+      "discriminator": [
+        141,
+        71,
+        213,
+        134,
+        66,
+        248,
+        220,
+        137
+      ],
+      "accounts": [
+        {
+          "name": "initial_price_account",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  105,
+                  110,
+                  105,
+                  116,
+                  105,
+                  97,
+                  108,
+                  95,
+                  112,
+                  114,
+                  105,
+                  99,
+                  101
+                ]
+              }
+            ]
+          }
+        },
+        {
+          "name": "admin",
+          "writable": true,
+          "signer": true
+        }
+      ],
+      "args": [
+        {
+          "name": "new_price",
+          "type": "u64"
+        }
+      ]
     }
   ],
   "accounts": [
+    {
+      "name": "InitialPriceAccount",
+      "discriminator": [
+        122,
+        158,
+        74,
+        79,
+        42,
+        14,
+        59,
+        10
+      ]
+    },
     {
       "name": "ProgramAdmin",
       "discriminator": [
@@ -670,6 +1165,19 @@
         34,
         250,
         140
+      ]
+    },
+    {
+      "name": "TicketStatusAccount",
+      "discriminator": [
+        218,
+        154,
+        55,
+        127,
+        251,
+        176,
+        49,
+        49
       ]
     },
     {
@@ -689,26 +1197,28 @@
   "errors": [
     {
       "code": 6000,
-      "name": "InvalidInput",
-      "msg": "Invalid input provided."
+      "name": "UnauthorizedMinting",
+      "msg": "Unauthorized minting attempt."
     },
     {
       "code": 6001,
-      "name": "InvalidPrice",
-      "msg": "Invalid price provided."
-    },
-    {
-      "code": 6002,
-      "name": "InsufficientBalance",
-      "msg": "Insufficient balance."
-    },
-    {
-      "code": 6003,
-      "name": "Unauthorized",
-      "msg": "Unauthorized access."
+      "name": "InvalidMintAmount",
+      "msg": "Mint amount must not be equal to 0."
     }
   ],
   "types": [
+    {
+      "name": "InitialPriceAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "price",
+            "type": "u64"
+          }
+        ]
+      }
+    },
     {
       "name": "ProgramAdmin",
       "type": {
@@ -721,6 +1231,40 @@
           {
             "name": "is_initialized",
             "type": "bool"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TicketStatus",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Inactive"
+          },
+          {
+            "name": "Active"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TicketStatusAccount",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "status",
+            "type": {
+              "defined": {
+                "name": "TicketStatus"
+              }
+            }
+          },
+          {
+            "name": "expiration",
+            "type": "i64"
           }
         ]
       }

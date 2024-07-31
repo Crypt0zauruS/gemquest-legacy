@@ -9,6 +9,7 @@ import RPC from "../services/solanaRPC";
 import { ipfsGateway, gemAddresses, gemTypes } from "../utils";
 import { PublicKey } from "@solana/web3.js";
 import Logout from "../components/Logout";
+import TicketManager from "../components/TicketManager";
 
 interface LoginProps {
   login: () => Promise<void>;
@@ -61,7 +62,7 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
     gem5?: any;
     gem10?: any;
     gem20?: any;
-    [key: string]: any; // Add this line to allow indexing with a number
+    [key: string]: any;
   }>({});
   const [nftByUser, setNftByUser] = useState<{
     [key: string]: number;
@@ -72,6 +73,8 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
   }>({});
 
   const [isRewardsModalOpen, setIsRewardsModalOpen] = useState(false);
+
+  const [isTicketManagerOpen, setIsTicketManagerOpen] = useState(false);
 
   const openRewardsModal = () => {
     setIsRewardsModalOpen(true);
@@ -116,7 +119,7 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
       setNftMetadata(nftMetadata);
       setGemsMetadata(gemsMetadata);
       setNftByUser(nftByUser);
-      // console.table({ gems, nftMetadata, gemsMetadata, nftByUser });
+      // console.table({ gems, nftMetadata, gemsMetadata, nftByUser,userTickets,ticketPrice });
     } catch (err) {
       setError("Failed to fetch data");
       console.error(err);
@@ -527,6 +530,22 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
                 >
                   Your collection
                 </p>
+                <div style={{ paddingTop: "20px" }} />
+                <p
+                  className="modalContentNft"
+                  style={{
+                    fontFamily: "Final Frontier",
+                    color: "orangered",
+                    width: "350px",
+                    fontSize: "1.4rem",
+                    margin: "0 auto",
+                    cursor: "pointer",
+                    marginBottom: "10px",
+                  }}
+                  onClick={() => setIsTicketManagerOpen(true)}
+                >
+                  Buy Tickets
+                </p>
               </div>
             )}
           </div>
@@ -706,6 +725,12 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
                 </button>
               </div>
             </div>
+          )}
+          {isTicketManagerOpen && (
+            <TicketManager
+              provider={provider}
+              onClose={() => setIsTicketManagerOpen(false)}
+            />
           )}
         </div>
       </main>

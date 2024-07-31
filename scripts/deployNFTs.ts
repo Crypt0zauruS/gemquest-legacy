@@ -113,7 +113,7 @@ async function main() {
     2
   )};`;
 
-  fs.writeFileSync(path.join(__dirname, "nft.js"), nftContent);
+  fs.writeFileSync(path.join(__dirname, "util2NFTs.js"), nftContent);
   console.log("nft.js file created successfully.");
 }
 

@@ -97,11 +97,11 @@ export default async function handler(
     },
   };
 
-  if (!apiKey) {
-    return res
-      .status(500)
-      .json({ error: "OPENAI_API_KEY not set in environment variables" });
-  }
+  // if (!apiKey) {
+  //   return res
+  //     .status(500)
+  //     .json({ error: "OPENAI_API_KEY not set in environment variables" });
+  // }
 
   try {
     //  const openai = new OpenAI({

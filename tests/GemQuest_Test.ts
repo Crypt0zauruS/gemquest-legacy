@@ -22,6 +22,45 @@ import {
 } from "@solana/spl-token";
 import { MPL_TOKEN_METADATA_PROGRAM_ID } from "@metaplex-foundation/mpl-token-metadata";
 
+interface MintTokenAccounts {
+  mintAuthority: PublicKey;
+  recipient: PublicKey;
+  mintAccount: PublicKey;
+  associatedTokenAccount: PublicKey;
+  tokenProgram: PublicKey;
+  associatedTokenProgram: PublicKey;
+  systemProgram: PublicKey;
+}
+
+interface CreateNftAccounts {
+  payer: PublicKey;
+  metadataAccount: PublicKey;
+  editionAccount: PublicKey;
+  mintNftAccount: PublicKey;
+  associatedNftTokenAccount: PublicKey;
+  tokenProgram: PublicKey;
+  tokenMetadataProgram: PublicKey;
+  associatedTokenProgram: PublicKey;
+  systemProgram: PublicKey;
+  rent: PublicKey;
+}
+
+interface BurnTokenTransferNftAccounts {
+  mintTokenAccount: PublicKey;
+  associatedTokenAccount: PublicKey;
+  from: PublicKey;
+  to: PublicKey;
+  fromAuthority: PublicKey;
+  tokenProgram: PublicKey;
+}
+
+interface ApproveTokenAccounts {
+  associatedTokenAccount: PublicKey;
+  delegate: PublicKey;
+  authority: PublicKey;
+  tokenProgram: PublicKey;
+}
+
 describe("***** GemQuest Unit TESTS ******", () => {
   let ADMIN: Wallet;
   const USER_1 = Keypair.generate();
@@ -184,7 +223,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
       assert.isNotNull(mintInfo, "Mint info should not be null");
     });
 
-    it("- should spl-token created with the correct address", async () => {
+    it("- should create spl-token with the correct address", async () => {
       const mintInfo = await getMint(
         program.provider.connection as any,
         new PublicKey(MINT_TOKEN_ACCOUNT.publicKey)
@@ -194,7 +233,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
       );
     });
 
-    it("- should spl-token created with the correct authority address", async () => {
+    it("- should create spl-token with the correct authority address", async () => {
       const mintInfo = await getMint(
         program.provider.connection as any,
         new PublicKey(MINT_TOKEN_ACCOUNT.publicKey)
@@ -204,7 +243,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
       );
     });
 
-    it("- should fails if minting tokens with user wallet signer", async () => {
+    it("- should fail if minting tokens with user wallet signer", async () => {
       try {
         // Derive the associated token address account for the mint and user.
         const associatedTokenAccountAddress = getAssociatedTokenAddressSync(
@@ -227,14 +266,14 @@ describe("***** GemQuest Unit TESTS ******", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: web3.SystemProgram.programId,
-          })
+          } as MintTokenAccounts)
           .rpc();
 
         assert.fail("Expected transaction to fail");
       } catch (error) {}
     });
 
-    it("- should fails if minting tokens with invalid value", async () => {
+    it("- should fail if minting tokens with invalid value", async () => {
       try {
         // Derive the associated token address account for the mint and user.
         const associatedTokenAccountAddress = getAssociatedTokenAddressSync(
@@ -257,7 +296,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
             tokenProgram: TOKEN_PROGRAM_ID,
             associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: web3.SystemProgram.programId,
-          })
+          } as MintTokenAccounts)
           .rpc();
 
         assert.fail("Expected transaction to fail");
@@ -287,7 +326,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
       }
 
       // Mint the tokens to the associated token account.
-      const transactionSignature = await program.methods
+      await program.methods
         .mintTokensToUser(new BN(amount))
         .accounts({
           mintAuthority: ADMIN.publicKey,
@@ -299,7 +338,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
           tokenProgram: TOKEN_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           systemProgram: web3.SystemProgram.programId,
-        })
+        } as MintTokenAccounts)
         .rpc();
 
       const postBalance = (
@@ -341,7 +380,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
       console.log("User Token ATA:", userTokenATA.address.toBase58());
     });
 
-    it("- should fails if approving more tokens than owned", async () => {
+    it("- should fail if approving more tokens than owned", async () => {
       try {
         // Amount of tokens to mint.
         const invalidAmount = 9999999;
@@ -356,7 +395,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
 
             // system
             tokenProgram: TOKEN_PROGRAM_ID,
-          })
+          } as ApproveTokenAccounts)
           .signers([USER_1])
           .rpc();
 
@@ -375,7 +414,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
 
           // system
           tokenProgram: TOKEN_PROGRAM_ID,
-        })
+        } as ApproveTokenAccounts)
         .signers([USER_1])
         .rpc();
 
@@ -393,7 +432,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
       );
     });
 
-    it("- should fails if creating a NFT without enough token", async () => {
+    it("- should fail if creating a NFT without enough token", async () => {
       try {
         const invalidNftAmountToMint = 0;
         const adminNftATA = getAssociatedTokenAddressSync(
@@ -442,7 +481,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
             associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
             systemProgram: web3.SystemProgram.programId,
             rent: web3.SYSVAR_RENT_PUBKEY,
-          })
+          } as CreateNftAccounts)
           .signers([MINT_NFT_ACCOUNT])
           .rpc();
 
@@ -510,7 +549,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
           systemProgram: web3.SystemProgram.programId,
           rent: web3.SYSVAR_RENT_PUBKEY,
-        })
+        } as CreateNftAccounts)
         .signers([MINT_NFT_ACCOUNT])
         .rpc();
 
@@ -525,7 +564,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
 
     let tokenBalanceBeforeMintNft: number;
 
-    it("- should fails if sending an NFT with an empty wallet", async () => {
+    it("- should fail if sending an NFT with an empty wallet", async () => {
       try {
         const adminTokenATA = getAssociatedTokenAddressSync(
           MINT_TOKEN_ACCOUNT.publicKey,
@@ -556,7 +595,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
 
             // system
             tokenProgram: TOKEN_PROGRAM_ID,
-          })
+          } as BurnTokenTransferNftAccounts)
           .signers([ADMIN.payer])
           .rpc();
 
@@ -564,7 +603,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
       } catch (error) {}
     });
 
-    it("- should fails if sending more token than allowance", async () => {
+    it("- should fail if sending more token than allowance", async () => {
       try {
         const wrong_NFT_PRICE = 100 * web3.LAMPORTS_PER_SOL;
 
@@ -612,7 +651,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
 
             // system
             tokenProgram: TOKEN_PROGRAM_ID,
-          })
+          } as BurnTokenTransferNftAccounts)
           .signers([ADMIN.payer])
           .rpc();
       } catch (error) {}
@@ -668,7 +707,7 @@ describe("***** GemQuest Unit TESTS ******", () => {
 
           // system
           tokenProgram: TOKEN_PROGRAM_ID,
-        })
+        } as BurnTokenTransferNftAccounts)
         .signers([ADMIN.payer])
         .rpc();
 

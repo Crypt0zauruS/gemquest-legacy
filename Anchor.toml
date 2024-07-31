@@ -5,7 +5,7 @@ resolution = true
 skip-lint = false
 
 [programs.devnet]
-gemquest = "55DGY73Wa84msrQsGmWumQiM8RHUbhT3D7wzqUx7Rpdz"
+gemquest = "D4y8N3ndz7YgEM4jR9DPWN6HsdWmfNwNnsJFkNKLzvdh"
 
 [registry]
 url = "https://api.apr.dev"

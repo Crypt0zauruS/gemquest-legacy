@@ -2,6 +2,7 @@ import {
   Connection,
   Keypair,
   LAMPORTS_PER_SOL,
+  ParsedAccountData,
   PublicKey,
   SystemProgram,
   Transaction,
@@ -28,6 +29,8 @@ import {
 import {
   mplTokenMetadata,
   fetchDigitalAssetByMetadata,
+  MPL_TOKEN_METADATA_PROGRAM_ID,
+  fetchDigitalAsset,
 } from "@metaplex-foundation/mpl-token-metadata";
 import { createUmi } from "@metaplex-foundation/umi-bundle-defaults";
 import {
@@ -35,6 +38,7 @@ import {
   gemMetadataAccounts,
   nftMetadata,
   ipfsGateway,
+  ticketMetadata,
 } from "../utils";
 
 export default class SolanaRpc {
@@ -79,6 +83,9 @@ export default class SolanaRpc {
   };
 
   signMessage = async (message: string): Promise<string> => {
+    if (!message) {
+      return "";
+    }
     try {
       const solanaWallet = new SolanaWallet(this.provider);
       const msg = Buffer.from(message, "utf8");
@@ -90,8 +97,155 @@ export default class SolanaRpc {
     }
   };
 
+  getAdminWallet = async (): Promise<Keypair> => {
+    try {
+      const response = await fetch("/api/getKey", { method: "POST" });
+      const data = await response.json();
+      // Décodez la clé privée de adminWallet
+      const adminWalletSecretKey = bs58.decode(data.privateKey);
+      const adminWallet = Keypair.fromSecretKey(
+        new Uint8Array(adminWalletSecretKey)
+      );
+      return adminWallet;
+    } catch (error) {
+      console.error("Error in getAdminKey:", error);
+      throw error;
+    }
+  };
+
+  getPrice = async (): Promise<number> => {
+    try {
+      const connection = new Connection("https://api.devnet.solana.com");
+      const [pda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("initial_price")],
+        new PublicKey(idl.address)
+      );
+
+      const accountInfo = await connection.getAccountInfo(pda);
+
+      if (!accountInfo || !accountInfo.data) {
+        throw new Error("Compte non trouvé ou données non disponibles");
+      }
+
+      // Décodez les données du compte
+      const price = accountInfo.data.readBigUInt64LE(8); // 8 bytes offset pour le discriminator
+
+      return Number(price);
+    } catch (error) {
+      console.error("Error in getInitialPrice:", error);
+      throw error;
+    }
+  };
+
+  updateInitialPrice = async (newPrice: number): Promise<string> => {
+    try {
+      const adminWallet = await this.getAdminWallet();
+      const connection = new Connection("https://api.devnet.solana.com");
+      const provider = new AnchorProvider(connection, adminWallet as any, {
+        preflightCommitment: "confirmed",
+      });
+      const program: Program = new Program(idl as any, provider);
+
+      const [pda] = PublicKey.findProgramAddressSync(
+        [Buffer.from("initial_price")],
+        new PublicKey(idl.address)
+      );
+
+      const tx = await program.methods
+        .updateInitialPrice(new BN(newPrice))
+        .accounts({
+          initialPriceAccount: pda,
+          admin: adminWallet.publicKey,
+        })
+        .rpc();
+
+      console.log("Prix initial mis à jour. Transaction:", tx);
+      return tx;
+    } catch (error) {
+      console.error("Error in updateInitialPrice:", error);
+      throw error;
+    }
+  };
+
+  activateTicket = async (mintAddress: string): Promise<string> => {
+    try {
+      const solanaWallet = new SolanaWallet(this.provider);
+      const connectionConfig = await solanaWallet.request<
+        string[],
+        CustomChainConfig
+      >({
+        method: "solana_provider_config",
+        params: [],
+      });
+      const conn = new Connection(connectionConfig.rpcTarget);
+      const adminWallet = await this.getAdminWallet();
+      const provider = new AnchorProvider(conn, adminWallet as any, {
+        preflightCommitment: "finalized",
+      });
+      const program = new Program(idl as any, provider);
+      setProvider(provider);
+
+      const mintPublicKey = new PublicKey(mintAddress);
+
+      const [ticketStatusPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("ticket_status"), mintPublicKey.toBuffer()],
+        program.programId
+      );
+
+      const tx = await (program.methods.activateTicket() as any)
+        .accounts({
+          ticketStatusAccount: ticketStatusPDA,
+          admin: adminWallet.publicKey,
+        })
+        .rpc();
+
+      console.log("Ticket activated. Transaction signature:", tx);
+
+      return tx;
+    } catch (error) {
+      console.error("Error activating ticket:", error);
+      throw error;
+    }
+  };
+
+  getTicketStatus = async (mintAddress: string): Promise<{}> => {
+    try {
+      const connection = new Connection("https://api.devnet.solana.com");
+      const mintPublicKey = new PublicKey(mintAddress);
+      const [ticketStatusPDA] = PublicKey.findProgramAddressSync(
+        [Buffer.from("ticket_status"), mintPublicKey.toBuffer()],
+        new PublicKey(idl.address)
+      );
+      const accountInfo = await connection.getAccountInfo(ticketStatusPDA);
+      if (!accountInfo || !accountInfo.data) {
+        throw new Error("Account not found or data not available");
+      }
+      const status = accountInfo.data.readUInt32LE(8);
+      const expiration = accountInfo.data.readBigInt64LE(12);
+      console.log("Ticket status:", status);
+      console.log("Ticket expiration:", expiration);
+      const currentTime = BigInt(Math.floor(Date.now() / 1000));
+      let statusString;
+
+      if (status === 0) {
+        statusString = "Not activated";
+      } else if (status === 1 && expiration > currentTime) {
+        statusString = "Activated";
+      } else {
+        statusString = "Expired";
+      }
+      return {
+        status: statusString,
+        expiration: Number(expiration),
+      };
+    } catch (error) {
+      console.error("Error in getTicketStatus:", error);
+      throw error;
+    }
+  };
+
   mintGems = async (amount: number, mintAddress: string): Promise<string> => {
-    if (amount <= 0) {
+    if (amount <= 0 || !mintAddress) {
       return "";
     }
     try {
@@ -102,11 +256,7 @@ export default class SolanaRpc {
       };
       const conn = new Connection(connectionConfig.rpcTarget);
       // Récupérez la clé privée de l'API
-      const response = await fetch("/api/getKey", { method: "POST" });
-      const data = await response.json();
-      // Décodez la clé privée de adminWallet
-      const adminWalletSecretKey = bs58.decode(data.privateKey);
-      const adminWallet = Keypair.fromSecretKey(adminWalletSecretKey);
+      const adminWallet = await this.getAdminWallet();
       const provider = new AnchorProvider(conn, adminWallet as any, {
         preflightCommitment: "finalized",
       });
@@ -119,15 +269,6 @@ export default class SolanaRpc {
         mint,
         new PublicKey(userWallet as string)
       );
-
-      console.table({
-        programId: program.programId.toBase58(),
-        userWallet: userWallet,
-        signer: adminWallet.publicKey.toBase58(),
-        mint: mint.toBase58(),
-        associatedTokenAccount: associatedTokenAccount.toBase58(),
-      });
-
       const instruction = program.instruction.mintTokensToUser(new BN(amount), {
         accounts: {
           mintAuthority: provider.wallet.publicKey,
@@ -297,7 +438,7 @@ export default class SolanaRpc {
     gemAmount: number,
     mintAddress: PublicKey
   ): Promise<string> => {
-    if (gemAmount <= 0) {
+    if (gemAmount <= 0 || !mintAddress) {
       return "";
     }
     try {
@@ -309,9 +450,6 @@ export default class SolanaRpc {
         rpcTarget: "https://api.devnet.solana.com",
       };
       const conn = new Connection(connectionConfig.rpcTarget);
-
-      console.log("Fetching admin wallet key");
-      // Récupérez la clé privée de l'API
       const response = await fetch("/api/getKey", { method: "POST" });
       const data = await response.json();
       // Décodez la clé privée de adminWallet
@@ -393,19 +531,15 @@ export default class SolanaRpc {
   };
 
   checkApproveToken = async (userWallet: PublicKey, mintAddress: PublicKey) => {
+    if (!userWallet || !mintAddress) {
+      return 0;
+    }
     try {
       const connectionConfig = {
         rpcTarget: "https://api.devnet.solana.com",
       };
       const conn = new Connection(connectionConfig.rpcTarget);
-      // Récupérez la clé privée de l'API
-      const response = await fetch("/api/getKey", { method: "POST" });
-      const data = await response.json();
-      // Décodez la clé privée de adminWallet
-      const adminWalletSecretKey = bs58.decode(data.privateKey);
-      const adminWallet = Keypair.fromSecretKey(
-        new Uint8Array(adminWalletSecretKey)
-      );
+      const adminWallet = await this.getAdminWallet();
 
       const provider = new AnchorProvider(conn, adminWallet as any, {
         preflightCommitment: "finalized",
@@ -446,6 +580,13 @@ export default class SolanaRpc {
     nft_price: number,
     gemAmounts: { [key: string]: number }
   ): Promise<string> => {
+    if (
+      nft_price <= 0 ||
+      Object.keys(gemAmounts).length === 0 ||
+      !nftTokenAddr
+    ) {
+      return "";
+    }
     try {
       const users = await this.getAccounts();
       const userWallet = users[0];
@@ -453,13 +594,7 @@ export default class SolanaRpc {
         rpcTarget: "https://api.devnet.solana.com",
       };
       const conn = new Connection(connectionConfig.rpcTarget);
-      // Récupérez la clé privée de l'API
-      const response = await fetch("/api/getKey", { method: "POST" });
-      const data = await response.json();
-      const adminWalletSecretKey = bs58.decode(data.privateKey);
-      const adminWallet = Keypair.fromSecretKey(
-        new Uint8Array(adminWalletSecretKey)
-      );
+      const adminWallet = await this.getAdminWallet();
       const provider = new AnchorProvider(conn, adminWallet as any, {
         preflightCommitment: "finalized",
       });
@@ -482,7 +617,7 @@ export default class SolanaRpc {
           throw new Error("Refund amount does not match the difference");
         }
       }
-      console.log("NFT Token Address:", nftTokenAddr);
+      //console.log("NFT Token Address:", nftTokenAddr);
       const MINT_NFT_ACCOUNT = new PublicKey(nftTokenAddr);
 
       const userNftATA = await getOrCreateAssociatedTokenAccount(
@@ -491,8 +626,7 @@ export default class SolanaRpc {
         MINT_NFT_ACCOUNT,
         new PublicKey(userWallet)
       );
-      console.log("User NFT ATA:", userNftATA.address.toBase58());
-
+      //console.log("User NFT ATA:", userNftATA.address.toBase58());
       const adminNftATA = getAssociatedTokenAddressSync(
         MINT_NFT_ACCOUNT,
         adminWallet.publicKey
@@ -546,14 +680,217 @@ export default class SolanaRpc {
         adminWallet,
       ]);
       console.log("Mint NFT Transaction confirmed:", signature);
-      // Log the refund amount
-      await this.mintGems(gemAmounts.refund, gemAddresses[1]);
+
+      let refund = gemAmounts.refund;
+      if (refund > 5 && refund < 10) {
+        await this.mintGems(1, gemAddresses[5]);
+        refund -= 5;
+        await this.mintGems(refund, gemAddresses[1]);
+      } else if (refund >= 10 && refund < 20) {
+        await this.mintGems(1, gemAddresses[10]);
+        refund -= 10;
+        await this.mintGems(refund, gemAddresses[1]);
+      } else if (refund >= 20) {
+        await this.mintGems(1, gemAddresses[20]);
+        refund -= 20;
+        await this.mintGems(refund, gemAddresses[1]);
+      } else {
+        await this.mintGems(refund, gemAddresses[1]);
+      }
       console.log("Refunded amount:", gemAmounts.refund);
       return signature;
     } catch (error) {
       console.error("Error in burnTokenTransferNFT:", error);
       throw error;
     }
+  };
+
+  CreateTicketNFT = async () => {
+    const SEED_METADATA = "metadata";
+    const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
+      MPL_TOKEN_METADATA_PROGRAM_ID
+    );
+    const httpMetadataUri = ticketMetadata.uri.replace("ipfs://", ipfsGateway);
+    const jsonData = await fetch(httpMetadataUri);
+    const fetched = (await jsonData.json()) as {
+      symbol: any;
+      name: string;
+    };
+    const dataNFT = {
+      name: fetched.name,
+      symbol: fetched.symbol,
+      uri: ticketMetadata.uri,
+    };
+    const solanaWallet = new SolanaWallet(this.provider);
+    const users = await this.getAccounts();
+    const userWallet = users[0];
+    const connectionConfig = await solanaWallet.request<
+      string[],
+      CustomChainConfig
+    >({
+      method: "solana_provider_config",
+      params: [],
+    });
+    const conn = new Connection(connectionConfig.rpcTarget);
+    const adminWallet = await this.getAdminWallet();
+    const provider = new AnchorProvider(conn, adminWallet as any, {
+      preflightCommitment: "finalized",
+    });
+    const program = new Program(idl as any, provider);
+    setProvider(provider);
+    const buyer = new PublicKey(userWallet);
+    // Generate a new keypair for the mint
+    const mintNftTokenAccount = new Keypair();
+    // Derive the associated token address account for the mint and payer.
+    const associatedNftTokenAccountAddress = getAssociatedTokenAddressSync(
+      mintNftTokenAccount.publicKey,
+      buyer
+    );
+
+    const [metadataAccount] = await PublicKey.findProgramAddress(
+      [
+        Buffer.from(SEED_METADATA),
+        TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+        mintNftTokenAccount.publicKey.toBuffer(),
+      ],
+      TOKEN_METADATA_PROGRAM_ID
+    );
+
+    const [initialPricePDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("initial_price")],
+      program.programId
+    );
+
+    const [ticketStatusPDA] = PublicKey.findProgramAddressSync(
+      [Buffer.from("ticket_status"), mintNftTokenAccount.publicKey.toBuffer()],
+      program.programId
+    );
+
+    const buyerInstruction = program.instruction.createTicketNft(
+      dataNFT.name,
+      dataNFT.symbol,
+      dataNFT.uri,
+      {
+        accounts: {
+          payer: buyer,
+          admin: adminWallet.publicKey,
+          initialPriceAccount: initialPricePDA,
+          metadataAccount,
+          mintNftAccount: mintNftTokenAccount.publicKey,
+          associatedNftTokenAccount: associatedNftTokenAccountAddress,
+          ticketStatusAccount: ticketStatusPDA,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+          associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+          systemProgram: SystemProgram.programId,
+          rent: web3.SYSVAR_RENT_PUBKEY,
+        },
+      }
+    );
+    try {
+      const latestBlockhashInfo = await conn.getLatestBlockhash("finalized");
+      const transaction = new Transaction({
+        blockhash: latestBlockhashInfo.blockhash,
+        feePayer: adminWallet.publicKey,
+        lastValidBlockHeight: latestBlockhashInfo.lastValidBlockHeight,
+      }).add(buyerInstruction);
+
+      transaction.partialSign(adminWallet);
+      transaction.partialSign(mintNftTokenAccount);
+      const userSignedTransaction = await solanaWallet.signTransaction(
+        transaction
+      );
+      const signature = await conn.sendRawTransaction(
+        userSignedTransaction.serialize(),
+        {
+          skipPreflight: false,
+          preflightCommitment: "confirmed",
+        }
+      );
+      console.log("signature", signature);
+      await conn.confirmTransaction(signature, "confirmed");
+      return signature;
+    } catch (error) {
+      if (error instanceof web3.SendTransactionError) {
+        console.error("Transaction failed. Error details:", error);
+        console.error("Error logs:", error.logs);
+      } else {
+        console.error("Error creating ticket NFT:", error);
+      }
+      throw error;
+    }
+  };
+
+  getUserTickets = async () => {
+    const users = await this.getAccounts();
+    const userWallet = new PublicKey(users[0]);
+    const connectionConfig = {
+      rpcTarget: "https://api.devnet.solana.com",
+    };
+    const conn = new Connection(connectionConfig.rpcTarget);
+    const adminWallet = await this.getAdminWallet();
+    // Récupérer tous les comptes de jetons de l'utilisateur
+    const tokenAccounts = await conn.getTokenAccountsByOwner(
+      new PublicKey(userWallet),
+      {
+        programId: TOKEN_PROGRAM_ID,
+      }
+    );
+
+    const tickets: any[] = [];
+
+    for (const tokenAccount of tokenAccounts.value) {
+      const accountInfo = await conn.getParsedAccountInfo(tokenAccount.pubkey);
+      const tokenInfo = (accountInfo.value?.data as ParsedAccountData).parsed
+        .info;
+      // Vérifier si c'est un NFT (amount = 1 et decimals = 0)
+      if (
+        tokenInfo.tokenAmount.decimals === 0 &&
+        tokenInfo.tokenAmount.amount === "1"
+      ) {
+        const mintPublicKey = new PublicKey(tokenInfo.mint);
+        const signatures = await conn.getSignaturesForAddress(mintPublicKey);
+        if (signatures.length > 0) {
+          // Récupérer les détails de la transaction
+          const txDetails = await conn.getTransaction(signatures[0]?.signature);
+          // Récupérer le Program ID
+          // let programId = "Unknown";
+          // if (
+          //   txDetails &&
+          //   txDetails?.transaction?.message?.accountKeys?.length > 0
+          // ) {
+          //   programId =
+          //     txDetails.transaction.message.accountKeys[0]?.toString();
+          // }
+          //if (programId === idl.address) {
+          // console.log(txDetails, idl.address);
+          const asset = await fetchDigitalAsset(this.umi, tokenInfo.mint);
+          if (
+            asset.metadata.symbol === "GQTCK" &&
+            asset.metadata.updateAuthority === adminWallet.publicKey.toBase58()
+          ) {
+            const uri = asset.metadata.uri.replace("ipfs://", ipfsGateway);
+            const jsonData = await fetch(uri);
+            const image = (await jsonData.json()).image;
+
+            let mintTimestamp;
+            if (txDetails?.blockTime) {
+              mintTimestamp = txDetails.blockTime;
+            } else {
+              mintTimestamp = null;
+            }
+            tickets.push({
+              mint: mintPublicKey.toBase58(),
+              name: asset.metadata.name,
+              image: image.replace("ipfs://", ipfsGateway),
+              mintTimestamp,
+            });
+          }
+          // }
+        }
+      }
+    }
+    return tickets;
   };
 
   fetchNFTByUser = async (): Promise<{ [key: string]: number }> => {

@@ -80,20 +80,29 @@ async function main() {
   await CreateToken(metadata_gem_20, 20);
 
   // Create gems.js file
+  const convertKeysToNumbers = (obj: any) => {
+    // covert key string to number
+    const newObj: any = {};
+    for (const key in obj) {
+      newObj[parseInt(key)] = obj[key];
+    }
+    return newObj;
+  };
+
   const gemsContent = `export const gemAddresses = ${JSON.stringify(
-    gemAddresses,
+    convertKeysToNumbers(gemAddresses),
     null,
     2
   )};
 
 export const gemMetadataAccounts = ${JSON.stringify(
-    gemMetadataAccounts,
+    convertKeysToNumbers(gemMetadataAccounts),
     null,
     2
   )};
 `;
 
-  fs.writeFileSync(path.join(__dirname, "gems.js"), gemsContent);
+  fs.writeFileSync(path.join(__dirname, "util1Gems.js"), gemsContent);
   console.log("gems.js file created successfully.");
 }
 

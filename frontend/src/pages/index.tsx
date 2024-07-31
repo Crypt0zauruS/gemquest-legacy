@@ -11,7 +11,7 @@ import Camera from "../components/Camera";
 import { sciFiThemes, messageToSign } from "../utils";
 import { ToastContainer, toast } from "react-toastify";
 import { useTheme } from "../lib/ThemeContext";
-import SciFiSelect from "../components/SciFiSelect.tsx";
+import SciFiSelect from "../components/SciFiSelect";
 
 interface LoginProps {
   login: () => Promise<void>;

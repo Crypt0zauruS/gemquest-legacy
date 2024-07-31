@@ -1,7 +1,7 @@
 
 use anchor_lang::prelude::*;
 
-declare_id!("55DGY73Wa84msrQsGmWumQiM8RHUbhT3D7wzqUx7Rpdz");
+declare_id!("D4y8N3ndz7YgEM4jR9DPWN6HsdWmfNwNnsJFkNKLzvdh");
 
 pub mod instructions;
 
@@ -42,11 +42,44 @@ pub mod gemquest {
         instructions::create_nft::create_nft(ctx, nft_name, nft_symbol, nft_uri, amount)
     }
 
+    pub fn initialize_initial_price(ctx: Context<InitializeInitialPrice>) -> Result<()> {
+        instructions::create_ticket_nft::initialize_initial_price(ctx)
+    }
+
+    pub fn update_initial_price(ctx: Context<UpdateInitialPrice>, new_price: u64) -> Result<()> {
+        instructions::create_ticket_nft::update_initial_price(ctx, new_price)
+    }
+
+    pub fn get_initial_price(ctx: Context<GetInitialPrice>) -> Result<u64> {
+        instructions::create_ticket_nft::get_initial_price(ctx)
+    }
+
+    pub fn create_ticket_nft(
+        ctx: Context<CreateTicketNFT>,
+        nft_name: String,
+        nft_symbol: String,
+        nft_uri: String,
+       
+    ) -> Result<()> {
+        instructions::create_ticket_nft::create_ticket_nft(ctx, nft_name, nft_symbol, nft_uri)
+    }
+    
+
     pub fn approve_token(ctx: Context<ApproveToken>, amount: u64) -> Result<()> {
         instructions::approve_token::approve_token(ctx, amount)
     }
 
     pub fn burn_token_transfer_nft(ctx: Context<TransferToken>, nft_price: u64) -> Result<()> {
         instructions::burn_token_transfer_nft::burn_token_transfer_nft(ctx, nft_price )
+    }
+
+    // New function added for activating the ticket
+    pub fn activate_ticket(ctx: Context<ActivateTicket>) -> Result<()> {
+        instructions::create_ticket_nft::activate_ticket(ctx)
+    }
+
+    // New function added for getting the ticket status
+    pub fn get_ticket_status(ctx: Context<GetTicketStatus>) -> Result<(TicketStatus, i64)> {
+        instructions::create_ticket_nft::get_ticket_status(ctx)
     }
 }
