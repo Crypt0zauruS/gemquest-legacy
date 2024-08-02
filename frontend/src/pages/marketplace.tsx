@@ -196,6 +196,25 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
     return fetch;
   };
 
+  const checkRewardAllowance = async (
+    rpc: RPC,
+    userWallet: string,
+    mintAddress: string
+  ) => {
+    const address = new PublicKey(mintAddress);
+    try {
+      const res = await rpc.checkApproveToken(
+        new PublicKey(userWallet),
+        address
+      );
+      console.log("Allowance for", mintAddress, res);
+      return res;
+    } catch (error) {
+      console.error(`Error checking approval for ${mintAddress}:`, error);
+      return 0n; // Default to 0 if there is an error
+    }
+  };
+
   const approveRequiredGems = async (
     rpc: RPC,
     userWallet: string,
@@ -206,7 +225,7 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
     let approvedGems = await checkAllowance(rpc, userWallet, gemTypes);
 
     const totalGemValue = gemTypes.reduce(
-      (acc, gemType) =>
+      (acc: number, gemType: { type: string | number; value: number }) =>
         acc + Math.floor(userGems[gemType.type]) * gemType.value,
       0
     );
@@ -298,6 +317,7 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
         gemsToApprove[gemType.value] = 0;
       }
     }
+    await fetchData();
     return gemsToApprove;
   };
 
@@ -373,6 +393,57 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
         progress: undefined,
       });
     } finally {
+      setLoader(false);
+    }
+  };
+
+  const handleBurnAllowanceNFT = async (address: string) => {
+    try {
+      setLoader(true);
+      const rpc = new RPC(provider);
+      toast.loading(`Approve burning Reward NFT ...`, {
+        theme: "dark",
+        position: "top-right",
+        autoClose: 10000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: false,
+        progress: undefined,
+      });
+      const accounts = await rpc.getAccounts();
+      const userWallet = accounts[0];
+      const allowance = await checkRewardAllowance(rpc, userWallet, address);
+      console.log("Reward NFT allowance", allowance);
+      if (allowance === 0n) {
+        await rpc.approveTokenBurn(1, new PublicKey(address));
+        toast.success(`Burn Reward NFT approved ! \n`, {
+          theme: "dark",
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: false,
+          progress: undefined,
+        });
+      }
+      // Refresh data
+      //await fetchData();
+    } catch (error) {
+      console.error(error);
+      toast.error("Error during Reward NFT burn allowance", {
+        theme: "dark",
+        position: "top-right",
+        autoClose: 5000,
+        hideProgressBar: false,
+        closeOnClick: true,
+        pauseOnHover: true,
+        draggable: false,
+        progress: undefined,
+      });
+    } finally {
+      toast.dismiss();
       setLoader(false);
     }
   };
@@ -688,7 +759,7 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
               <div className="modalContentNft">
                 <div>
                   <h4 style={{ textAlign: "center", margin: "5px" }}>
-                    Check your rewards collection !
+                    Check your rewards collection
                   </h4>
                 </div>
                 <hr />
@@ -704,6 +775,10 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
                             )}
                             alt={nftMetadata[key]?.metadata?.name}
                             className={`rewardImage blue`}
+                            onClick={() =>
+                              handleBurnAllowanceNFT(nftMetadata[key]?.address)
+                            }
+                            style={{ cursor: "pointer" }}
                           />
                           <h3>
                             {nftMetadata[key]?.metadata?.name}{" "}

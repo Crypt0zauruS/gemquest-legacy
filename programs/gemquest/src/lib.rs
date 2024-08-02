@@ -1,7 +1,7 @@
 
 use anchor_lang::prelude::*;
 
-declare_id!("D4y8N3ndz7YgEM4jR9DPWN6HsdWmfNwNnsJFkNKLzvdh");
+declare_id!("FYw2Ae2rc9iYLU69Nc3HHxPnfXDijhHFuH1GAdmQuUXv");
 
 pub mod instructions;
 
@@ -69,8 +69,16 @@ pub mod gemquest {
         instructions::approve_token::approve_token(ctx, amount)
     }
 
-    pub fn burn_token_transfer_nft(ctx: Context<TransferToken>, nft_price: u64) -> Result<()> {
-        instructions::burn_token_transfer_nft::burn_token_transfer_nft(ctx, nft_price )
+    pub fn initialize_burn_tracker(ctx: Context<InitializeBurnTracker>) -> Result<()> {
+        instructions::burn_token_transfer_nft::initialize_burn_tracker(ctx)
+    }
+
+    pub fn burn_token_transfer_nft(ctx: Context<TransferToken>, amount: u64, value: u64) -> Result<()> {
+        instructions::burn_token_transfer_nft::burn_token_transfer_nft(ctx, amount, value )
+    }
+
+    pub fn burn_token_only(ctx: Context<BurnTokenOnly>) -> Result<()> {
+        instructions::burn_token_only::burn_token_only(ctx)
     }
 
     // New function added for activating the ticket

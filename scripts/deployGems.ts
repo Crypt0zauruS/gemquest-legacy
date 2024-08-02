@@ -93,13 +93,13 @@ async function main() {
     convertKeysToNumbers(gemAddresses),
     null,
     2
-  )};
+  ).replace(/"(\d+)":/g, "$1:")};
 
 export const gemMetadataAccounts = ${JSON.stringify(
     convertKeysToNumbers(gemMetadataAccounts),
     null,
     2
-  )};
+  ).replace(/"(\d+)":/g, "$1:")};
 `;
 
   fs.writeFileSync(path.join(__dirname, "util1Gems.js"), gemsContent);

@@ -1,13 +1,13 @@
 export const gemAddresses = {
-  1: "2csGKZfnTDemaT7csPuEWpBmezvPStRMotKPbLWyNS9o",
-  5: "8qRnVeFS4fnX5d6m6Xaev9Ax83XFdNz7rMXrQQZFFXN8",
-  10: "GygDXa7heuXc2KT3tmH3dJswmLVvRdh7kVW6NmzNuG7y",
-  20: "BELA8zj35Yc2T349tUhUXcqfmpCws1LjKRSAYRr3eVv"
+  1: "3b8HiS3Enjc3ZBqea4dxcs72qnEDiRKKukkqnDvxCXUw",
+  5: "9f4hxhzswjy5YepaJK6a5RuBqqeu77mkRDSFi8VRJdXy",
+  10: "CMhLePGCvggg7sijCWN6PNg4z1d6R5DenLzz1WF4AXdU",
+  20: "BsZSVQrbZhuAar26LdCLscPMNtwKrkrrFQDd4womWn7r"
 };
 
 export const gemMetadataAccounts = {
-  1: "AL5orEp9scDT7yPhbSRhed4yoUNth95WC1dia21vDkFg",
-  5: "A9PyKT4GdyMJqUABgZ6nhsZ3mPLpkyjmczQmwwpyFkz7",
-  10: "6qYM7s4PStSYtSA531p1WJ66WLcxz2EVf7tHRtaSp87x",
-  20: "26KMMUU7AyQGhXWbmGHpofMQzzhZ6MRDzUmWPjmKW1sd"
+  1: "aXrLyFwSmBTTP74pE9Rn1dtdKfDPbvomwWp8yYsh17b",
+  5: "DskYccat6AiFT68BXW1hzq1qtQxiZiibEU52w7tesD6e",
+  10: "92foV3B9Czz9Xe53tPoqu24mKpj1bGRJ9AihduQ9VUxM",
+  20: "C69sERENUthQoGUdSsGtxNUqnAd7WzbHZGEYSysQJQ9t"
 };

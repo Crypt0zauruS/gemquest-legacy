@@ -7,8 +7,16 @@ use {
 
 pub fn approve_token(ctx: Context<ApproveToken>, amount: u64) -> Result<()> {
 
+    if amount == 0 {
+        return Err(ErrorCode::InvalidAmount.into());
+    }
+
     if ctx.accounts.associated_token_account.amount < amount {
         return Err(ErrorCode::InsufficientFunds.into());
+    }
+
+    if ctx.accounts.delegate.key() == ctx.accounts.authority.key() {
+        return Err(ErrorCode::DelegateIsSelf.into());
     }
 
     let cpi_accounts = Approve {
@@ -44,4 +52,8 @@ pub enum ErrorCode {
     Unauthorized,
     #[msg("Insufficient funds in the associated token account.")]
     InsufficientFunds,
+    #[msg("The delegate cannot be the same as the authority.")]
+    DelegateIsSelf,
+    #[msg("Invalid amount.")]
+    InvalidAmount,
 }

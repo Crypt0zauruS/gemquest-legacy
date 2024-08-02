@@ -103,17 +103,17 @@ export const ipfsGateway =
   "https://fuchsia-varying-camel-696.mypinata.cloud/ipfs/";
 
 export const gemAddresses = {
-  1: "2csGKZfnTDemaT7csPuEWpBmezvPStRMotKPbLWyNS9o",
-  5: "8qRnVeFS4fnX5d6m6Xaev9Ax83XFdNz7rMXrQQZFFXN8",
-  10: "GygDXa7heuXc2KT3tmH3dJswmLVvRdh7kVW6NmzNuG7y",
-  20: "BELA8zj35Yc2T349tUhUXcqfmpCws1LjKRSAYRr3eVv",
+  1: "3b8HiS3Enjc3ZBqea4dxcs72qnEDiRKKukkqnDvxCXUw",
+  5: "9f4hxhzswjy5YepaJK6a5RuBqqeu77mkRDSFi8VRJdXy",
+  10: "CMhLePGCvggg7sijCWN6PNg4z1d6R5DenLzz1WF4AXdU",
+  20: "BsZSVQrbZhuAar26LdCLscPMNtwKrkrrFQDd4womWn7r",
 };
 
 export const gemMetadataAccounts = {
-  1: "AL5orEp9scDT7yPhbSRhed4yoUNth95WC1dia21vDkFg",
-  5: "A9PyKT4GdyMJqUABgZ6nhsZ3mPLpkyjmczQmwwpyFkz7",
-  10: "6qYM7s4PStSYtSA531p1WJ66WLcxz2EVf7tHRtaSp87x",
-  20: "26KMMUU7AyQGhXWbmGHpofMQzzhZ6MRDzUmWPjmKW1sd",
+  1: "aXrLyFwSmBTTP74pE9Rn1dtdKfDPbvomwWp8yYsh17b",
+  5: "DskYccat6AiFT68BXW1hzq1qtQxiZiibEU52w7tesD6e",
+  10: "92foV3B9Czz9Xe53tPoqu24mKpj1bGRJ9AihduQ9VUxM",
+  20: "C69sERENUthQoGUdSsGtxNUqnAd7WzbHZGEYSysQJQ9t",
 };
 
 export const gemTypes = [
@@ -127,64 +127,64 @@ export const nftMetadata = [
   {
     name: "Exclusive Event Access",
     symbol: "GQEEA",
-    address: "396yRwPmeF7gjXknCWhpnSW6WKK4bKHGjTVnpLwPWHWj",
-    metadataAccount: "5odu6ib22V3bwxyi4cnVuCeBSstx9Mi429hL4Rg22ovK",
+    address: "98BPJmU6ym7ER5kYdEWDC2L5LBBbktdZRmMk5C4d9gEK",
+    metadataAccount: "EXLgDGN7FmRLm2dkyMFR5Yqq3kjtQfYcmJFcKDZmHyk7",
     uri: "ipfs://QmQd5AC6BMf7RLZQubVZ7kqkFLeffPWwhsERLVj2wXMbEX/GQEEA.json",
   },
   {
     name: "Free Drink",
     symbol: "GQFD",
-    address: "EzeEV9mZioRugfBq6cXKQp86Rfo8az7GCbAycy8KujEP",
-    metadataAccount: "SDm8FTEQrkd9bCxnECoUnXEtEYvwNfvcd2wEEbHptyb",
+    address: "HdoLKGdiDJvQ26aHLc2jBbdkQDPnZMB5pwTYb5cDoQ3",
+    metadataAccount: "34qCiqWgA3grJWzLYUa7bSmp6NvYpXTt1RG93oXLEGcp",
     uri: "ipfs://QmQd5AC6BMf7RLZQubVZ7kqkFLeffPWwhsERLVj2wXMbEX/GQFD.json",
   },
   {
     name: "Free Snack",
     symbol: "GQFS",
-    address: "2YaqMWHTMTSp4vx73bW4LgJvtTF8raR6EAEgxtYHa9xb",
-    metadataAccount: "GfLoz3AWeWYZzjJKQVrCNc9mzTSYgkA1LJGPaehw6ag6",
+    address: "C9i4aegzQXMrr6oAw6XE9Xroxd6uobGxyk4g376zsvsr",
+    metadataAccount: "9w86Fq3MKRSkMx1dGSZVstoTvVUdxu678HWYY1iFvkKW",
     uri: "ipfs://QmQd5AC6BMf7RLZQubVZ7kqkFLeffPWwhsERLVj2wXMbEX/GQFS.json",
   },
   {
     name: "Gift Cap",
     symbol: "GQGC",
-    address: "AYg5tebF3UyB9CtpSyu5CdBi6Wx1Hd7NddqZ2pBTVqGf",
-    metadataAccount: "BA9Zscgdwed7cX52vQWBTtMVmmD5K91mUpksuNZhZsX7",
+    address: "HxzgGAgg8t9mZNy8ikZ7bwkrh6ioUzZZS7hT1icYExTD",
+    metadataAccount: "2EDzZ1zBB7HkhHAF72a7azTvpWD3gsUCqEno54Kowdg4",
     uri: "ipfs://QmQd5AC6BMf7RLZQubVZ7kqkFLeffPWwhsERLVj2wXMbEX/GQGC.json",
   },
   {
     name: "Gift Photo",
     symbol: "GQGP",
-    address: "4NuKUQDcHDK3AkiYp6mJwdco5K5yGcq6G7Bmcr3qrFGS",
-    metadataAccount: "F1LeTjr8BUxYaQAuTpYfVg3FPTaR5e68sNeCnFPpkJUm",
+    address: "9RdusPFckgUYmdj8FgY5xkvxgcarxV5XeRc1nhWvRsfj",
+    metadataAccount: "2WTvSehVgv4Hf6A8WNAqyw4Fu2kXHFK1Zf6acBq2aA3X",
     uri: "ipfs://QmQd5AC6BMf7RLZQubVZ7kqkFLeffPWwhsERLVj2wXMbEX/GQGP.json",
   },
   {
     name: "Gift Shop",
     symbol: "GQGS",
-    address: "ALaoigLzTmd9UTVLFAGHSe7JcEFwMETFhYYXFyhUvTcx",
-    metadataAccount: "4jxWiy8Smf7WHWavmMXEC5DswX9amhK3Lvs8s2XgPnrZ",
+    address: "AfqbYBVDGjNvJ57EZwxXUc5pVsKsZJBxTcf5UR5cqhsr",
+    metadataAccount: "EzXvACh5wowyTGFxdeCjQGiCZgu8jaWwhuKRcwvUwZZs",
     uri: "ipfs://QmQd5AC6BMf7RLZQubVZ7kqkFLeffPWwhsERLVj2wXMbEX/GQGS.json",
   },
   {
     name: "Skip the Line",
     symbol: "GQSKL",
-    address: "HcBwCCj751uAbnkrnnVrvotucqeuhvZzqZEiiCpS5nCQ",
-    metadataAccount: "An7YZX7dyxLLdbvcZYc4uwUycywEh4GKvCetXWmRmzB4",
+    address: "CTWAZBCYnQfS3g7FwyzRBjJt5UqKM2GDAoYqq2h61Q7K",
+    metadataAccount: "R8QDVogsfZrudc18Mj27cMAeV44X2zDrJN17Uix8oRx",
     uri: "ipfs://QmQd5AC6BMf7RLZQubVZ7kqkFLeffPWwhsERLVj2wXMbEX/GQSKL.json",
   },
   {
     name: "Gift T-shirt",
     symbol: "GQTS",
-    address: "9EAUDVWT5WzDyVMv6N6nauVaBWbKHGEGMueHfy66odAs",
-    metadataAccount: "5w468xZw3XKwXcqryVgFGr3BYEXxRyKVHemDiHPqEqLk",
+    address: "DDebtLSV6VNWLyHv7PUVkYFpe4tty7fFYxZSn8t5wAA8",
+    metadataAccount: "DZLuxMVzCQAAnNrotM3o82k2GTaBLMLUqySndVciLbT",
     uri: "ipfs://QmQd5AC6BMf7RLZQubVZ7kqkFLeffPWwhsERLVj2wXMbEX/GQTS.json",
   },
   {
     name: "VIP Access",
     symbol: "GQVIP",
-    address: "5wvGJtfqiVMK7PzU77n6mwRZhAc6Ks5rVJ37i2dZReTs",
-    metadataAccount: "5C7brvYyE34714pZ5D4CxvXXMzSN6rTr1BGdvoG8zSAG",
+    address: "84wr3aMErvnFy47f2WTyS922bcCuoc5QQJbFkMBNeHmq",
+    metadataAccount: "GPaZysdwa4Y6ZNrwBt5CGp9Af9Vr9fn7Zvji4QGzGgMg",
     uri: "ipfs://QmQd5AC6BMf7RLZQubVZ7kqkFLeffPWwhsERLVj2wXMbEX/GQVIP.json",
   },
 ];

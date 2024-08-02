@@ -18,6 +18,7 @@ import {
   getOrCreateAssociatedTokenAccount,
   AccountLayout,
   getMint,
+  getAssociatedTokenAddress,
 } from "@solana/spl-token";
 import bs58 from "bs58";
 import {
@@ -581,26 +582,118 @@ export default class SolanaRpc {
     }
   };
 
-  refundGems = async (amount: number, gemValue: string = "1") => {
-    const gemValues = [20, 10, 5, 1];
-    const currentGemValue = parseInt(gemValue);
+  burnTokens = async (
+    program: Program,
+    adminWallet: Keypair,
+    burnTrackerPDA: PublicKey,
+    gemEntries: [string, number][],
+    gemAddresses: { [key: string]: string },
+    userWallet: string
+  ) => {
+    const instructions = [];
+    const specialKey = new PublicKey(new Array(32).fill(1));
 
-    for (const value of gemValues) {
-      if (value >= currentGemValue) {
-        while (amount >= value) {
-          await this.mintGems(
-            1,
-            gemAddresses[value.toString() as "1" | "5" | "10" | "20"]
-          );
-          amount -= value;
-          console.log(`Refunded 1 gem of value ${value}`);
+    for (const [gemValue, gemAmount] of gemEntries) {
+      const gemPublicKey = new PublicKey(
+        gemAddresses[gemValue as "1" | "5" | "10" | "20"]
+      );
+
+      const userTokenATA = await getOrCreateAssociatedTokenAccount(
+        program.provider.connection,
+        adminWallet,
+        gemPublicKey,
+        new PublicKey(userWallet)
+      );
+
+      const burnInstruction = program.instruction.burnTokenTransferNft(
+        new BN(gemAmount).mul(new BN(web3.LAMPORTS_PER_SOL)),
+        {
+          accounts: {
+            payer: adminWallet.publicKey,
+            mintTokenAccount: gemPublicKey,
+            associatedTokenAccount: userTokenATA.address,
+            from: userTokenATA.address,
+            to: specialKey,
+            fromAuthority: adminWallet.publicKey,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            burnTracker: burnTrackerPDA,
+          },
         }
-      }
+      );
+      instructions.push(burnInstruction);
     }
 
-    if (amount > 0) {
-      console.log(`Unable to refund remaining ${amount} of ${gemValue} gem`);
-    }
+    const blockhashInfo = await program.provider.connection.getLatestBlockhash(
+      "finalized"
+    );
+    const transaction = new Transaction({
+      blockhash: blockhashInfo.blockhash,
+      lastValidBlockHeight: blockhashInfo.lastValidBlockHeight,
+      feePayer: adminWallet.publicKey,
+    }).add(...instructions);
+
+    const signature = await sendAndConfirmTransaction(
+      program.provider.connection,
+      transaction,
+      [adminWallet]
+    );
+    console.log("Burn Transaction confirmed:", signature);
+    return signature;
+  };
+
+  transferNFT = async (
+    program: Program,
+    adminWallet: Keypair,
+    burnTrackerPDA: PublicKey,
+    nftTokenAddr: string,
+    userWallet: string
+  ) => {
+    const MINT_NFT_ACCOUNT = new PublicKey(nftTokenAddr);
+
+    const userNftATA = await getOrCreateAssociatedTokenAccount(
+      program.provider.connection,
+      adminWallet,
+      MINT_NFT_ACCOUNT,
+      new PublicKey(userWallet)
+    );
+
+    const adminNftATA = getAssociatedTokenAddressSync(
+      MINT_NFT_ACCOUNT,
+      adminWallet.publicKey
+    );
+
+    const transferInstruction = program.instruction.burnTokenTransferNft(
+      new BN(1),
+      {
+        accounts: {
+          payer: adminWallet.publicKey,
+          mintTokenAccount: MINT_NFT_ACCOUNT,
+          associatedTokenAccount: adminNftATA,
+          from: adminNftATA,
+          to: userNftATA.address,
+          fromAuthority: adminWallet.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+          burnTracker: burnTrackerPDA,
+        },
+      }
+    );
+
+    const blockhashInfo = await program.provider.connection.getLatestBlockhash(
+      "finalized"
+    );
+    const transaction = new Transaction({
+      blockhash: blockhashInfo.blockhash,
+      lastValidBlockHeight: blockhashInfo.lastValidBlockHeight,
+      feePayer: adminWallet.publicKey,
+    }).add(transferInstruction);
+
+    const signature = await sendAndConfirmTransaction(
+      program.provider.connection,
+      transaction,
+      [adminWallet]
+    );
+    console.log("NFT Transfer Transaction confirmed:", signature);
+    return signature;
   };
 
   burnTokenTransferNFT = async (
@@ -608,214 +701,162 @@ export default class SolanaRpc {
     nft_price: number,
     gemAmounts: { [key: string]: number }
   ): Promise<string> => {
-    const maxRetries = 5;
-    const retryDelay = 2000; // 2 secondes
-
-    const retryOperation = async <T>(
-      operation: () => Promise<T>,
-      retryCount = 0
-    ): Promise<T> => {
-      try {
-        return await operation();
-      } catch (error) {
-        if (retryCount < maxRetries) {
-          console.log(`Retry attempt ${retryCount + 1}`);
-          await new Promise((resolve) => setTimeout(resolve, retryDelay));
-          return retryOperation(operation, retryCount + 1);
-        } else {
-          throw error;
-        }
-      }
-    };
-
     if (
       nft_price <= 0 ||
       Object.keys(gemAmounts).length === 0 ||
       !nftTokenAddr
     ) {
-      return "";
+      throw new Error("Invalid input parameters");
     }
 
     try {
-      const users = await this.getAccounts();
-      const userWallet = users[0];
-      const connectionConfig = { rpcTarget: "https://api.devnet.solana.com" };
-      const conn = new Connection(connectionConfig.rpcTarget);
+      const userWallet = (await this.getAccounts())[0];
+      const connection = new Connection("https://api.devnet.solana.com");
       const adminWallet = await this.getAdminWallet();
-      const provider = new AnchorProvider(conn, adminWallet as any, {
-        preflightCommitment: "finalized",
+      const provider = new AnchorProvider(connection, adminWallet as any, {
+        preflightCommitment: "confirmed",
       });
       const program = new Program(idl as any, provider);
-      setProvider(provider);
 
-      let totalGems = 0;
-      for (const [gemValue, gemAmount] of Object.entries(gemAmounts)) {
-        if (gemValue !== "refund") {
-          totalGems += gemAmount * parseInt(gemValue);
-        }
-      }
-      console.log("Total gems amount:", totalGems, "NFT price:", nft_price);
+      // Validate total gem amount
+      let totalGems = Object.entries(gemAmounts).reduce(
+        (sum, [gemValue, amount]) =>
+          gemValue !== "refund" ? sum + parseInt(gemValue) * amount : sum,
+        0
+      );
       if (totalGems < nft_price) {
         throw new Error("Total gems amount is less than NFT price");
-      } else if (totalGems > nft_price) {
-        const refund = totalGems - nft_price;
-        if (gemAmounts["refund"] !== refund) {
-          throw new Error("Refund amount does not match the difference");
-        }
       }
 
+      // Calculate refund
+      const refund = totalGems - nft_price;
+      if (gemAmounts["refund"] !== refund) {
+        throw new Error("Refund amount does not match the difference");
+      }
+
+      // Find PDA for BurnTracker
       const [burnTrackerPDA] = await PublicKey.findProgramAddress(
         [Buffer.from("burn_tracker"), adminWallet.publicKey.toBuffer()],
         program.programId
       );
 
-      const accountInfo = await conn.getAccountInfo(burnTrackerPDA);
-      if (!accountInfo) {
-        await retryOperation(async () => {
-          const initInstruction = program.instruction.initializeBurnTracker({
-            accounts: {
-              burnTracker: burnTrackerPDA,
-              payer: adminWallet.publicKey,
-              systemProgram: SystemProgram.programId,
-            },
-          });
-
-          const blockhash = await conn.getLatestBlockhash("finalized");
-          const initTx = new Transaction({
-            blockhash: blockhash.blockhash,
-            lastValidBlockHeight: blockhash.lastValidBlockHeight,
-            feePayer: adminWallet.publicKey,
-          }).add(initInstruction);
-
-          const initTransaction = await sendAndConfirmTransaction(
-            conn,
-            initTx,
-            [adminWallet]
-          );
-          console.log("Burn Tracker Initialized:", initTransaction);
-        });
-      }
-
-      const specialKey = new PublicKey(new Array(32).fill(1));
-      const gemEntries = Object.entries(gemAmounts).filter(
-        ([gemValue, gemAmount]) => gemValue !== "refund" && gemAmount > 0
-      );
-      let lastMint: PublicKey;
-      let burnedGems: { [key: string]: number } = {};
-
-      try {
-        for (const [gemValue, gemAmount] of gemEntries) {
-          await retryOperation(async () => {
-            const gemPublicKey = new PublicKey(
-              gemAddresses[gemValue as "1" | "5" | "10" | "20"]
-            );
-            const userTokenATA = await getOrCreateAssociatedTokenAccount(
-              program.provider.connection,
-              adminWallet,
-              gemPublicKey,
-              new PublicKey(userWallet)
-            );
-
-            const burnInstruction = program.instruction.burnTokenTransferNft(
-              new BN(gemAmount).mul(new BN(web3.LAMPORTS_PER_SOL)),
-              new BN(gemValue),
-              {
-                accounts: {
-                  payer: adminWallet.publicKey,
-                  mintTokenAccount: gemPublicKey,
-                  associatedTokenAccount: userTokenATA.address,
-                  from: userTokenATA.address,
-                  to: specialKey,
-                  fromAuthority: adminWallet.publicKey,
-                  tokenProgram: TOKEN_PROGRAM_ID,
-                  burnTracker: burnTrackerPDA,
-                },
-              }
-            );
-
-            const blockhashInfo = await conn.getLatestBlockhash("finalized");
-            const transaction = new Transaction({
-              blockhash: blockhashInfo.blockhash,
-              lastValidBlockHeight: blockhashInfo.lastValidBlockHeight,
-              feePayer: adminWallet.publicKey,
-            }).add(burnInstruction);
-
-            const burnTx = await sendAndConfirmTransaction(conn, transaction, [
-              adminWallet,
-            ]);
-            console.log(`Burned ${gemAmount} of ${gemValue} gem:`, burnTx);
-            lastMint = gemPublicKey;
-          });
+      // 1. Initialize BurnTracker
+      const initInstruction = program.instruction.initializeBurnTracker(
+        new BN(nft_price),
+        {
+          accounts: {
+            burnTracker: burnTrackerPDA,
+            payer: adminWallet.publicKey,
+            systemProgram: SystemProgram.programId,
+          },
         }
+      );
 
-        const MINT_NFT_ACCOUNT = new PublicKey(nftTokenAddr);
-        const userNftATA = await getOrCreateAssociatedTokenAccount(
-          program.provider.connection,
-          adminWallet,
-          MINT_NFT_ACCOUNT,
+      const initTx = await sendAndConfirmTransaction(
+        connection,
+        new Transaction().add(initInstruction),
+        [adminWallet]
+      );
+      console.log("Burn Tracker Initialized:", initTx);
+
+      // 2. Burn Tokens
+      const gemEntries = Object.entries(gemAmounts).filter(
+        ([gemValue, amount]) => gemValue !== "refund" && amount > 0
+      );
+
+      for (const [gemValue, amount] of gemEntries) {
+        const gemMint = new PublicKey(
+          gemAddresses[gemValue as unknown as keyof typeof gemAddresses]
+        );
+        const userGemATA = await getAssociatedTokenAddress(
+          gemMint,
           new PublicKey(userWallet)
         );
-        const adminNftATA = getAssociatedTokenAddressSync(
-          MINT_NFT_ACCOUNT,
-          adminWallet.publicKey
+
+        const burnInstruction = program.instruction.burnTokenTransferNft(
+          new BN(amount),
+          {
+            accounts: {
+              associatedTokenAccount: userGemATA,
+              mintTokenAccount: gemMint,
+              from: userGemATA,
+              to: new PublicKey(new Array(32).fill(1)), // Special burn address
+              fromAuthority: adminWallet.publicKey,
+              tokenProgram: TOKEN_PROGRAM_ID,
+              burnTracker: burnTrackerPDA,
+            },
+          }
         );
 
-        const signature = await retryOperation(async () => {
-          const transferInstruction = program.instruction.burnTokenTransferNft(
-            new BN(nft_price).mul(new BN(web3.LAMPORTS_PER_SOL)),
-            new BN(0),
-            {
-              accounts: {
-                payer: adminWallet.publicKey,
-                mintTokenAccount: lastMint,
-                associatedTokenAccount: adminNftATA,
-                from: adminNftATA,
-                to: userNftATA.address,
-                fromAuthority: adminWallet.publicKey,
-                tokenProgram: TOKEN_PROGRAM_ID,
-                burnTracker: burnTrackerPDA,
-              },
-            }
-          );
-
-          const blockhashInfo = await conn.getLatestBlockhash("finalized");
-          const transaction = new Transaction({
-            blockhash: blockhashInfo.blockhash,
-            lastValidBlockHeight: blockhashInfo.lastValidBlockHeight,
-            feePayer: adminWallet.publicKey,
-          }).add(transferInstruction);
-
-          const sig = await sendAndConfirmTransaction(conn, transaction, [
-            adminWallet,
-          ]);
-          console.log("Mint NFT Transaction confirmed:", sig);
-          return sig;
-        });
-
-        let refund = gemAmounts.refund;
-        if (refund > 0) {
-          await this.refundGems(refund);
-        }
-        console.log("Refunded amount:", gemAmounts.refund);
-
-        return signature;
-      } catch (error) {
-        console.error("Error in burnTokenTransferNFT:", error);
-
-        // Remboursement des gems burnées en cas d'échec
-        console.log("Minting failed. Refunding burned gems...");
-        for (const [gemValue, burnedAmount] of Object.entries(burnedGems)) {
-          await this.refundGems(burnedAmount, gemValue);
-        }
-        console.log("All burned gems have been refunded.");
-
-        throw error;
+        const burnTx = await sendAndConfirmTransaction(
+          connection,
+          new Transaction().add(burnInstruction),
+          [adminWallet]
+        );
+        console.log(`Burned ${amount} of ${gemValue} gem:`, burnTx);
       }
+
+      // 3. Transfer NFT
+      const nftMint = new PublicKey(nftTokenAddr);
+      const userNftATA = await getAssociatedTokenAddress(
+        nftMint,
+        new PublicKey(userWallet)
+      );
+      const adminNftATA = await getAssociatedTokenAddress(
+        nftMint,
+        adminWallet.publicKey
+      );
+
+      const transferInstruction = program.instruction.burnTokenTransferNft(
+        new BN(1),
+        {
+          accounts: {
+            associatedTokenAccount: adminNftATA,
+            mintTokenAccount: nftMint,
+            from: adminNftATA,
+            to: userNftATA,
+            fromAuthority: adminWallet.publicKey,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            burnTracker: burnTrackerPDA,
+          },
+        }
+      );
+
+      const transferTx = await sendAndConfirmTransaction(
+        connection,
+        new Transaction().add(transferInstruction),
+        [adminWallet]
+      );
+      console.log("NFT Transferred:", transferTx);
+
+      // 4. Handle Refund
+      if (refund > 0) {
+        await this.handleRefund(refund);
+      }
+
+      return transferTx;
     } catch (error) {
       console.error("Error in burnTokenTransferNFT:", error);
       throw error;
     }
   };
+
+  // Helper function to handle refund
+  async handleRefund(refundAmount: number) {
+    const gemValues = [20, 10, 5, 1];
+    for (const value of gemValues) {
+      const count = Math.floor(refundAmount / value);
+      if (count > 0) {
+        await this.mintGems(
+          count,
+          gemAddresses[value.toString() as unknown as keyof typeof gemAddresses]
+        );
+        refundAmount -= count * value;
+      }
+      if (refundAmount === 0) break;
+    }
+    console.log("Refund processed");
+  }
 
   CreateTicketNFT = async () => {
     const SEED_METADATA = "metadata";

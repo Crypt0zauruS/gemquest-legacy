@@ -1,5 +1,5 @@
 {
-  "address": "D4y8N3ndz7YgEM4jR9DPWN6HsdWmfNwNnsJFkNKLzvdh",
+  "address": "FYw2Ae2rc9iYLU69Nc3HHxPnfXDijhHFuH1GAdmQuUXv",
   "metadata": {
     "name": "gemquest",
     "version": "0.1.0",
@@ -95,6 +95,38 @@
       ]
     },
     {
+      "name": "burn_token_only",
+      "discriminator": [
+        217,
+        208,
+        32,
+        103,
+        103,
+        73,
+        168,
+        238
+      ],
+      "accounts": [
+        {
+          "name": "associated_token_account",
+          "writable": true
+        },
+        {
+          "name": "mint_token_account",
+          "writable": true
+        },
+        {
+          "name": "from_authority",
+          "signer": true
+        },
+        {
+          "name": "token_program",
+          "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "burn_token_transfer_nft",
       "discriminator": [
         52,
@@ -133,11 +165,44 @@
         {
           "name": "token_program",
           "address": "TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ5DA"
+        },
+        {
+          "name": "burn_tracker",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  114,
+                  110,
+                  95,
+                  116,
+                  114,
+                  97,
+                  99,
+                  107,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "from_authority"
+              }
+            ]
+          }
         }
       ],
       "args": [
         {
-          "name": "nft_price",
+          "name": "amount",
+          "type": "u64"
+        },
+        {
+          "name": "value",
           "type": "u64"
         }
       ]
@@ -790,6 +855,60 @@
       "args": []
     },
     {
+      "name": "initialize_burn_tracker",
+      "discriminator": [
+        64,
+        136,
+        148,
+        50,
+        41,
+        49,
+        29,
+        230
+      ],
+      "accounts": [
+        {
+          "name": "burn_tracker",
+          "writable": true,
+          "pda": {
+            "seeds": [
+              {
+                "kind": "const",
+                "value": [
+                  98,
+                  117,
+                  114,
+                  110,
+                  95,
+                  116,
+                  114,
+                  97,
+                  99,
+                  107,
+                  101,
+                  114
+                ]
+              },
+              {
+                "kind": "account",
+                "path": "payer"
+              }
+            ]
+          }
+        },
+        {
+          "name": "payer",
+          "writable": true,
+          "signer": true
+        },
+        {
+          "name": "system_program",
+          "address": "11111111111111111111111111111111"
+        }
+      ],
+      "args": []
+    },
+    {
       "name": "initialize_initial_price",
       "discriminator": [
         175,
@@ -1142,6 +1261,19 @@
   ],
   "accounts": [
     {
+      "name": "BurnTracker",
+      "discriminator": [
+        217,
+        41,
+        162,
+        44,
+        16,
+        176,
+        82,
+        102
+      ]
+    },
+    {
       "name": "InitialPriceAccount",
       "discriminator": [
         122,
@@ -1207,6 +1339,22 @@
     }
   ],
   "types": [
+    {
+      "name": "BurnTracker",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "total_burned",
+            "type": "u64"
+          },
+          {
+            "name": "nft_price",
+            "type": "u64"
+          }
+        ]
+      }
+    },
     {
       "name": "InitialPriceAccount",
       "type": {
