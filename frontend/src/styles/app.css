@@ -38,36 +38,25 @@ body {
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
   background-color: black;
- 
+
   background-size: cover;
   background-repeat: no-repeat;
-  position:relative;
- 
+  position: relative;
 }
 
 body::before {
-  content: '';
+  content: "";
   background-image: url(/images/background.webp); /* Replace with the correct path to your image */
   background-size: cover;
   background-repeat: no-repeat;
-  opacity: 0.3; 
+  opacity: 0.3;
   top: 0;
   left: 0;
   right: 0;
   bottom: 0;
-  position: absolute;
+  position: fixed;
   z-index: -1;
 }
-
-/* MAIN */
-main {
-  flex-grow: 1;
-  display: flex;
-  flex-direction: column;
-  justify-content: center;
-  overflow: auto;
-}
-/* END MAIN */
 
 code {
   font-family: source-code-pro, Menlo, Monaco, Consolas, "Courier New",
@@ -194,19 +183,6 @@ header,
 }
 /* FOOTER */
 
-.footer-container {
-  display: flex !important;
-  justify-content: center;
-  align-items: center;
-  text-align: center;
-  background-color: var(--dark-grey-color);
-  color: var(--light-grey-color);
-  padding: 10px 0 !important;
-  width: 100% !important;
-  position: absolute;
-  bottom: 0 !important;
-}
-
 .footer-container p {
   color: var(--white-color);
   line-height: 19px;
@@ -268,7 +244,7 @@ header,
 
 .formContent .inputBox {
   position: relative;
-  height: 300px;
+  height: 365px;
 }
 
 .formContent .inputBox p {
@@ -812,6 +788,40 @@ input:checked + .slider:before {
   box-shadow: 0 0 15px #00ffcc, 0 0 30px #00ffcc;
 }
 
+.sci-fi-input {
+  background-color: rgba(0, 0, 0, 0.7);
+  border: 1px solid #00ffff;
+  color: #00ffff;
+  padding: 10px;
+  font-size: 1rem;
+  font-family: "Courier New", monospace;
+  width: 100%;
+  margin-bottom: 10px;
+}
+
+.price-change-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 99999;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+
+.qr-code-container {
+  position: fixed;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 9999;
+  background-color: white;
+  padding: 20px;
+  border-radius: 10px;
+  box-shadow: 0 0 10px 10px rgba(230, 68, 68, 0.8);
+}
+
 /* Styles pour les petits écrans */
 @media screen and (max-width: 768px) {
   .answers th,
@@ -1031,9 +1041,13 @@ input:checked + .slider:before {
   padding: 20px;
   border-radius: 8px;
   /* background-image: linear-gradient(45deg, #a86464, #34343f); */
-  background: linear-gradient(90deg, transparent, rgba(255, 0, 0, 0.3), transparent);
-  box-shadow: 0 0 15px red,
-  inset 0 0 15px red;
+  background: linear-gradient(
+    90deg,
+    transparent,
+    rgba(255, 0, 0, 0.3),
+    transparent
+  );
+  box-shadow: 0 0 15px red, inset 0 0 15px red;
 }
 
 /* Sci-fi animated background effect */

@@ -2,10 +2,10 @@ import { useState, useEffect, useCallback } from "react";
 import { ToastContainer, toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import Header from "../components/Header";
-import Footer from "../components/Footer";
 import Loader from "../components/Loader";
 import { useRouter } from "next/router";
 import RPC from "../services/solanaRPC";
+import QRCode from "react-qr-code";
 import { ipfsGateway, gemAddresses, gemTypes } from "../utils";
 import { PublicKey } from "@solana/web3.js";
 import Logout from "../components/Logout";
@@ -16,6 +16,7 @@ interface LoginProps {
   logout: () => Promise<void>;
   loggedIn: boolean;
   provider: any;
+  rpc: RPC | null;
 }
 
 interface Nft {
@@ -35,11 +36,24 @@ interface GemApproval {
   [refund: string]: number;
 }
 
+interface Receipt {
+  name: string;
+  image: string;
+  description: string;
+  mintTimestamp: number | null;
+  mint: string;
+}
+
 type ApprovedGems = {
   [key: number]: bigint;
 };
 
-const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
+const Marketplace: React.FC<LoginProps> = ({
+  logout,
+  loggedIn,
+  provider,
+  rpc,
+}) => {
   const router = useRouter();
 
   const [totalGems, setTotalGems] = useState(0);
@@ -68,13 +82,35 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
     [key: string]: number;
   }>({});
 
-  const [nftMetadata, setNftMetadata] = useState<{
-    [key: string]: any;
-  }>({});
+  const [nftMetadata, setNftMetadata] = useState<
+    | {
+        [key: string]: any;
+      }
+    | undefined
+  >(undefined);
 
   const [isRewardsModalOpen, setIsRewardsModalOpen] = useState(false);
 
   const [isTicketManagerOpen, setIsTicketManagerOpen] = useState(false);
+
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+
+  const [qrData, setQrData] = useState<{
+    userWallet: string;
+    nftMintAddress: string;
+  } | null>(null);
+
+  const [receipts, setReceipts] = useState<Receipt[]>([]);
+
+  const [isReceiptsModalOpen, setIsReceiptsModalOpen] = useState(false);
+
+  const openReceiptsModal = () => {
+    setIsReceiptsModalOpen(true);
+  };
+
+  const closeReceiptsModal = () => {
+    setIsReceiptsModalOpen(false);
+  };
 
   const openRewardsModal = () => {
     setIsRewardsModalOpen(true);
@@ -104,21 +140,29 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
   const fetchData = useCallback(async () => {
     setLoader(true);
     try {
-      const rpc = new RPC(provider);
-      const [gems, nftMetadata, gemsMetadata, nftByUser] = await Promise.all([
-        rpc.fetchGems(),
-        rpc.fetchNFT(),
-        rpc.fetchGemsMetadata(),
-        rpc.fetchNFTByUser(),
-      ]);
+      //const rpc = new RPC(provider);
+      const [gems, nftMetadata, gemsMetadata, nftByUser, fetchedReceipts] =
+        await Promise.all([
+          rpc?.fetchGems(),
+          rpc?.fetchNFT(),
+          rpc?.fetchGemsMetadata(),
+          rpc?.fetchNFTByUser(),
+          rpc?.fetchReceipt(),
+        ]);
 
-      setUserGems(gems);
+      if (gems) {
+        setUserGems(gems);
+      }
       setTotalGems(
-        gems.gem1 * 1 + gems.gem5 * 5 + gems.gem10 * 10 + gems.gem20 * 20
+        (gems?.gem1 ?? 0) * 1 +
+          (gems?.gem5 ?? 0) * 5 +
+          (gems?.gem10 ?? 0) * 10 +
+          (gems?.gem20 ?? 0) * 20
       );
       setNftMetadata(nftMetadata);
-      setGemsMetadata(gemsMetadata);
-      setNftByUser(nftByUser);
+      setGemsMetadata(gemsMetadata || {});
+      setNftByUser(nftByUser || {});
+      setReceipts(fetchedReceipts || []);
       // console.table({ gems, nftMetadata, gemsMetadata, nftByUser,userTickets,ticketPrice });
     } catch (err) {
       setError("Failed to fetch data");
@@ -160,18 +204,14 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
     setIsDetailModalOpen(false);
   };
 
-  const checkAllowance = async (
-    rpc: RPC,
-    userWallet: string,
-    gemTypes: { type: string; value: number }[]
-  ): Promise<ApprovedGems> => {
+  const checkAllowance = async (userWallet: string): Promise<ApprovedGems> => {
     let fetch: ApprovedGems = {};
     const fetching = gemTypes.map(async (gemType) => {
       const mintAddress = new PublicKey(
         gemAddresses[gemType.value as 1 | 5 | 10 | 20]
       );
       try {
-        const res = await rpc.checkApproveToken(
+        const res = await rpc?.checkApproveToken(
           new PublicKey(userWallet),
           mintAddress
         );
@@ -197,13 +237,12 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
   };
 
   const checkRewardAllowance = async (
-    rpc: RPC,
     userWallet: string,
     mintAddress: string
   ) => {
     const address = new PublicKey(mintAddress);
     try {
-      const res = await rpc.checkApproveToken(
+      const res = await rpc?.checkApproveToken(
         new PublicKey(userWallet),
         address
       );
@@ -216,13 +255,12 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
   };
 
   const approveRequiredGems = async (
-    rpc: RPC,
     userWallet: string,
     gemCost: number
   ): Promise<GemApproval> => {
     gemCost = Math.ceil(gemCost);
 
-    let approvedGems = await checkAllowance(rpc, userWallet, gemTypes);
+    let approvedGems = await checkAllowance(userWallet);
 
     const totalGemValue = gemTypes.reduce(
       (acc: number, gemType: { type: string | number; value: number }) =>
@@ -308,7 +346,7 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
           gemAddresses[gemValue as any as 1 | 5 | 10 | 20]
         );
         console.log(`Approving ${gemCount} gems of value ${gemValue}`);
-        await rpc.approveTokenBurn(gemCount, gemPublicKey);
+        await rpc?.approveTokenBurn(gemCount, gemPublicKey);
       }
     }
     // reintroduce zero counts for a corrected formatted object
@@ -324,7 +362,7 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
   const handleBuyNFT = async (address: string) => {
     try {
       setLoader(true);
-      const rpc = new RPC(provider);
+      //const rpc = new RPC(provider);
       console.log(selectedNft);
       toast.loading(`Approve burning GEMS Tokens ...`, {
         theme: "dark",
@@ -336,10 +374,13 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
         draggable: false,
         progress: undefined,
       });
-      const accounts = await rpc.getAccounts();
-      const userWallet = accounts[0];
+      const accounts = await rpc?.getAccounts();
+      const userWallet = accounts?.[0] ?? "";
       const gemCost = selectedNft?.metadata?.properties?.gem_cost;
-      const burnAndRefund = await approveRequiredGems(rpc, userWallet, gemCost);
+      let burnAndRefund = {};
+      if (rpc) {
+        burnAndRefund = await approveRequiredGems(userWallet, gemCost);
+      }
       toast.dismiss();
       toast.success(`Burn GEMS tokens approved ! \n`, {
         theme: "dark",
@@ -362,11 +403,12 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
         draggable: false,
         progress: undefined,
       });
-      await rpc.burnTokenTransferNFT(
+      await rpc?.burnTokenTransferNFT(
         address,
         gemCost,
         burnAndRefund as GemApproval
       );
+      await fetchData();
       toast.dismiss();
       toast.success(`NFT ! ${selectedNft?.metadata?.name} minted \n`, {
         theme: "dark",
@@ -378,10 +420,9 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
         draggable: false,
         progress: undefined,
       });
-      // Refresh data
-      await fetchData();
     } catch (error) {
       console.error(error);
+      toast.dismiss();
       toast.error("Error during NFT minting", {
         theme: "dark",
         position: "top-right",
@@ -400,7 +441,7 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
   const handleBurnAllowanceNFT = async (address: string) => {
     try {
       setLoader(true);
-      const rpc = new RPC(provider);
+      // const rpc = new RPC(provider);
       toast.loading(`Approve burning Reward NFT ...`, {
         theme: "dark",
         position: "top-right",
@@ -411,27 +452,45 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
         draggable: false,
         progress: undefined,
       });
-      const accounts = await rpc.getAccounts();
-      const userWallet = accounts[0];
-      const allowance = await checkRewardAllowance(rpc, userWallet, address);
+      const accounts = await rpc?.getAccounts();
+      const userWallet = accounts ? accounts[0] : null;
+      const allowance =
+        rpc && userWallet !== null
+          ? await checkRewardAllowance(userWallet, address)
+          : null;
       console.log("Reward NFT allowance", allowance);
       if (allowance === 0n) {
-        await rpc.approveTokenBurn(1, new PublicKey(address));
-        toast.success(`Burn Reward NFT approved ! \n`, {
-          theme: "dark",
-          position: "top-right",
-          autoClose: 5000,
-          hideProgressBar: false,
-          closeOnClick: true,
-          pauseOnHover: true,
-          draggable: false,
-          progress: undefined,
-        });
+        try {
+          await rpc?.approveTokenBurn(1, new PublicKey(address));
+          toast.dismiss();
+          toast.success(`Burn Reward NFT approved ! \n`, {
+            theme: "dark",
+            position: "top-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: false,
+            progress: undefined,
+          });
+        } catch (error) {
+          throw new Error("Error during Reward NFT burn allowance");
+        }
       }
-      // Refresh data
-      //await fetchData();
+      const qrData = {
+        userWallet,
+        nftMintAddress: address,
+        timestamp: Date.now(),
+      };
+      if (qrData) {
+        setIsQrModalOpen(true);
+      } else {
+        throw new Error("Invalid QR data");
+      }
+      return qrData;
     } catch (error) {
       console.error(error);
+      toast.dismiss();
       toast.error("Error during Reward NFT burn allowance", {
         theme: "dark",
         position: "top-right",
@@ -443,9 +502,20 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
         progress: undefined,
       });
     } finally {
-      toast.dismiss();
       setLoader(false);
     }
+  };
+
+  const handleClickNFT = async (address: string) => {
+    const data = await handleBurnAllowanceNFT(address);
+    if (data) {
+      setQrData(data as { userWallet: string; nftMintAddress: string });
+    }
+  };
+
+  const handleCloseQrModal = () => {
+    setIsQrModalOpen(false);
+    setQrData(null);
   };
 
   useEffect(() => {
@@ -495,129 +565,161 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
             )}
 
             {loader && <Loader loadingMsg={undefined} styling={undefined} />}
-            {loggedIn && !loader && (
-              <div>
-                <h3
-                  className="modalContentNft"
-                  style={{
-                    fontFamily: "Final Frontier",
-                    width: "350px",
-                    fontSize: "1.5rem",
-                    margin: "0 auto",
-                    marginTop: "10px",
-                  }}
-                >
-                  Welcome to the Marketplace !
-                </h3>
-                <hr style={{ paddingTop: "10px" }} />
-                <div className="gemsContainer">
-                  {userGems?.gem1 > 0 && (
-                    <div className="gemItem">
-                      <img
-                        src={gemsMetadata?.gem1?.image?.replace(
-                          "ipfs://",
-                          ipfsGateway
-                        )}
-                        alt="Gem 1"
-                        className="gemImage"
-                      />
-                      <div className="gemCount">{userGems?.gem1}</div>
-                    </div>
-                  )}
-                  {userGems?.gem5 > 0 && (
-                    <div className="gemItem">
-                      <img
-                        src={gemsMetadata?.gem5?.image?.replace(
-                          "ipfs://",
-                          ipfsGateway
-                        )}
-                        alt="Gem 5"
-                        className="gemImage"
-                      />
-                      <div className="gemCount">{userGems?.gem5}</div>
-                    </div>
-                  )}
-                  {userGems?.gem10 > 0 && (
-                    <div className="gemItem">
-                      <img
-                        src={gemsMetadata?.gem10?.image?.replace(
-                          "ipfs://",
-                          ipfsGateway
-                        )}
-                        alt="Gem 10"
-                        className="gemImage"
-                      />
-                      <div className="gemCount">{userGems?.gem10}</div>
-                    </div>
-                  )}
-                  {userGems?.gem20 > 0 && (
-                    <div className="gemItem">
-                      <img
-                        src={gemsMetadata?.gem20?.image?.replace(
-                          "ipfs://",
-                          ipfsGateway
-                        )}
-                        alt="Gem 20"
-                        className="gemImage"
-                      />
-                      <div className="gemCount">{userGems?.gem20}</div>
-                    </div>
-                  )}
-                </div>
 
-                <div className="totalGems">
-                  <span>💎 {totalGems} GEMS 💎 </span>
+            {loggedIn && !loader && (
+              <>
+                {isQrModalOpen && (
+                  <div className="qr-code-container">
+                    <QRCode value={JSON.stringify(qrData)} />
+                    <button
+                      className="btnSubmit"
+                      type="button"
+                      style={{ marginTop: "30px" }}
+                      onClick={handleCloseQrModal}
+                    >
+                      Close or Cancel
+                    </button>
+                  </div>
+                )}
+                <div>
+                  <h3
+                    className="modalContentNft"
+                    style={{
+                      fontFamily: "Final Frontier",
+                      width: "350px",
+                      fontSize: "1.5rem",
+                      margin: "0 auto",
+                      marginTop: "10px",
+                    }}
+                  >
+                    Welcome to the Marketplace !
+                  </h3>
+                  <hr style={{ paddingTop: "10px" }} />
+                  <div className="gemsContainer">
+                    {userGems?.gem1 > 0 && (
+                      <div className="gemItem">
+                        <img
+                          src={gemsMetadata?.gem1?.image?.replace(
+                            "ipfs://",
+                            ipfsGateway
+                          )}
+                          alt="Gem 1"
+                          className="gemImage"
+                        />
+                        <div className="gemCount">{userGems?.gem1}</div>
+                      </div>
+                    )}
+                    {userGems?.gem5 > 0 && (
+                      <div className="gemItem">
+                        <img
+                          src={gemsMetadata?.gem5?.image?.replace(
+                            "ipfs://",
+                            ipfsGateway
+                          )}
+                          alt="Gem 5"
+                          className="gemImage"
+                        />
+                        <div className="gemCount">{userGems?.gem5}</div>
+                      </div>
+                    )}
+                    {userGems?.gem10 > 0 && (
+                      <div className="gemItem">
+                        <img
+                          src={gemsMetadata?.gem10?.image?.replace(
+                            "ipfs://",
+                            ipfsGateway
+                          )}
+                          alt="Gem 10"
+                          className="gemImage"
+                        />
+                        <div className="gemCount">{userGems?.gem10}</div>
+                      </div>
+                    )}
+                    {userGems?.gem20 > 0 && (
+                      <div className="gemItem">
+                        <img
+                          src={gemsMetadata?.gem20?.image?.replace(
+                            "ipfs://",
+                            ipfsGateway
+                          )}
+                          alt="Gem 20"
+                          className="gemImage"
+                        />
+                        <div className="gemCount">{userGems?.gem20}</div>
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="totalGems">
+                    <span>💎 {totalGems} GEMS 💎 </span>
+                  </div>
+                  <hr />
+                  <div style={{ paddingTop: "10px" }} />
+                  <p
+                    className="modalContentNft"
+                    style={{
+                      fontFamily: "Final Frontier",
+                      color: "orangered",
+                      width: "350px",
+                      fontSize: "1.4rem",
+                      margin: "0 auto",
+                      cursor: "pointer",
+                      marginBottom: "10px",
+                    }}
+                    onClick={openRewardsModal}
+                  >
+                    Redeem 💎 for rewards
+                  </p>
+                  <div style={{ paddingTop: "20px" }} />
+                  <p
+                    className="modalContentNft"
+                    style={{
+                      fontFamily: "Final Frontier",
+                      color: "orangered",
+                      width: "350px",
+                      fontSize: "1.4rem",
+                      margin: "0 auto",
+                      cursor: "pointer",
+                      marginBottom: "10px",
+                    }}
+                    onClick={openCollectionModal}
+                  >
+                    Your collection
+                  </p>
+                  <div style={{ paddingTop: "20px" }} />
+                  <p
+                    className="modalContentNft"
+                    style={{
+                      fontFamily: "Final Frontier",
+                      color: "orangered",
+                      width: "350px",
+                      fontSize: "1.4rem",
+                      margin: "0 auto",
+                      cursor: "pointer",
+                      marginBottom: "10px",
+                    }}
+                    onClick={openReceiptsModal}
+                  >
+                    View Receipts
+                  </p>
+                  <div style={{ paddingTop: "20px" }} />
+                  <p
+                    className="modalContentNft"
+                    style={{
+                      fontFamily: "Final Frontier",
+                      color: "orangered",
+                      width: "350px",
+                      fontSize: "1.4rem",
+                      margin: "0 auto",
+                      cursor: "pointer",
+                      marginBottom: "10px",
+                    }}
+                    onClick={() => setIsTicketManagerOpen(true)}
+                  >
+                    Manage Tickets
+                  </p>
                 </div>
-                <hr />
-                <div style={{ paddingTop: "10px" }} />
-                <p
-                  className="modalContentNft"
-                  style={{
-                    fontFamily: "Final Frontier",
-                    color: "orangered",
-                    width: "350px",
-                    fontSize: "1.4rem",
-                    margin: "0 auto",
-                    cursor: "pointer",
-                    marginBottom: "10px",
-                  }}
-                  onClick={openRewardsModal}
-                >
-                  Redeem 💎 for rewards
-                </p>
-                <div style={{ paddingTop: "20px" }} />
-                <p
-                  className="modalContentNft"
-                  style={{
-                    fontFamily: "Final Frontier",
-                    color: "orangered",
-                    width: "350px",
-                    fontSize: "1.4rem",
-                    margin: "0 auto",
-                    cursor: "pointer",
-                    marginBottom: "10px",
-                  }}
-                  onClick={openCollectionModal}
-                >
-                  Your collection
-                </p>
-                <div style={{ paddingTop: "20px" }} />
-                <p
-                  className="modalContentNft"
-                  style={{
-                    fontFamily: "Final Frontier",
-                    color: "orangered",
-                    width: "350px",
-                    fontSize: "1.4rem",
-                    margin: "0 auto",
-                    cursor: "pointer",
-                    marginBottom: "10px",
-                  }}
-                  onClick={() => setIsTicketManagerOpen(true)}
-                >
-                  Buy Tickets
-                </p>
-              </div>
+              </>
             )}
           </div>
 
@@ -654,7 +756,7 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
               </div>
             </>
           )}
-          {isRewardsModalOpen && (
+          {isRewardsModalOpen && loggedIn && (
             <div className="modalnft">
               <div className="modalContentNft">
                 <div>
@@ -665,21 +767,23 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
                 </div>
                 <hr />
                 <div className="rewardsContainer">
-                  {Object.keys(nftMetadata).map((key) => (
+                  {Object.keys(nftMetadata as object).map((key) => (
                     <div
                       key={key}
                       className="rewardItem"
                       style={{ cursor: "pointer" }}
-                      onClick={() => openDetailModal(nftMetadata[key])}
+                      onClick={() =>
+                        nftMetadata && openDetailModal(nftMetadata[key])
+                      }
                     >
                       <img
-                        src={nftMetadata[key]?.metadata?.image?.replace(
+                        src={nftMetadata?.[key]?.metadata?.image?.replace(
                           "ipfs://",
                           ipfsGateway
                         )}
-                        alt={nftMetadata[key]?.metadata?.name}
+                        alt={nftMetadata?.[key]?.metadata?.name}
                         className={`rewardImage ${
-                          nftMetadata[key]?.metadata?.properties?.gem_cost &&
+                          nftMetadata?.[key]?.metadata?.properties?.gem_cost &&
                           Number(
                             nftMetadata[key]?.metadata?.properties?.gem_cost
                           ) <= totalGems
@@ -687,9 +791,9 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
                             : "red"
                         }`}
                       />
-                      <h3>{nftMetadata[key]?.metadata?.name}</h3>
+                      <h3>{nftMetadata?.[key]?.metadata?.name}</h3>
                       <h3>
-                        {nftMetadata[key]?.metadata?.properties?.gem_cost} 💎
+                        {nftMetadata?.[key]?.metadata?.properties?.gem_cost} 💎
                       </h3>
                     </div>
                   ))}
@@ -703,7 +807,40 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
               </div>
             </div>
           )}
-          {isDetailModalOpen && selectedNft && (
+          {isReceiptsModalOpen && loggedIn && (
+            <div className="modalnft">
+              <div className="modalContentNft">
+                <div>
+                  <h4 style={{ textAlign: "center", margin: "5px" }}>
+                    Your Receipts
+                  </h4>
+                </div>
+                <hr />
+                <div className="rewardsContainer">
+                  {receipts.map((receipt, index) => (
+                    <div key={index} className="rewardItem">
+                      <img
+                        src={receipt.image}
+                        alt={receipt.name}
+                        className="rewardImage"
+                      />
+                      <h3>{receipt.name}</h3>
+                      <p style={{ color: "orangered" }}>
+                        {new Date(receipt.mintTimestamp || 0).toLocaleString()}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+                <button
+                  className="btnResult success"
+                  onClick={closeReceiptsModal}
+                >
+                  Close
+                </button>
+              </div>
+            </div>
+          )}
+          {isDetailModalOpen && selectedNft && loggedIn && (
             <div className="modalnft">
               <div className="modalContentNft">
                 <img
@@ -754,7 +891,7 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
               </div>
             </div>
           )}
-          {isCollectionModalOpen && (
+          {isCollectionModalOpen && loggedIn && (
             <div className="modalnft">
               <div className="modalContentNft">
                 <div>
@@ -763,28 +900,31 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
                   </h4>
                 </div>
                 <hr />
+
                 <div className="rewardsContainer">
-                  {Object.keys(nftMetadata).map(
+                  {Object.keys(nftMetadata as Object).map(
                     (key) =>
-                      nftByUser[nftMetadata[key]?.metadata?.symbol] > 0 && (
+                      nftByUser[nftMetadata?.[key]?.metadata?.symbol] > 0 && (
                         <div key={key} className="rewardItem">
                           <img
-                            src={nftMetadata[key]?.metadata?.image?.replace(
+                            src={nftMetadata?.[key]?.metadata?.image?.replace(
                               "ipfs://",
                               ipfsGateway
                             )}
-                            alt={nftMetadata[key]?.metadata?.name}
+                            alt={nftMetadata?.[key]?.metadata?.name}
                             className={`rewardImage blue`}
                             onClick={() =>
-                              handleBurnAllowanceNFT(nftMetadata[key]?.address)
+                              handleClickNFT(nftMetadata?.[key]?.address)
                             }
                             style={{ cursor: "pointer" }}
                           />
                           <h3>
-                            {nftMetadata[key]?.metadata?.name}{" "}
-                            {nftByUser[nftMetadata[key]?.metadata?.symbol] > 1
+                            {nftMetadata?.[key]?.metadata?.name}{" "}
+                            {nftByUser[nftMetadata?.[key]?.metadata?.symbol] > 1
                               ? `(x${
-                                  nftByUser[nftMetadata[key]?.metadata?.symbol]
+                                  nftByUser[
+                                    nftMetadata?.[key]?.metadata?.symbol
+                                  ]
                                 })`
                               : ""}
                           </h3>
@@ -792,6 +932,18 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
                       )
                   )}
                 </div>
+                <h3
+                  style={{
+                    textAlign: "center",
+                    margin: "5px",
+                    color: "orangered",
+                  }}
+                >
+                  {Object.keys(nftByUser).some((key) => nftByUser[key] > 0)
+                    ? "Click on an NFT to exchange it for the reward"
+                    : "No NFT in your collection"}
+                </h3>
+                <hr />
                 <button
                   className="btnResult success"
                   onClick={closeCollectionModal}
@@ -801,15 +953,14 @@ const Marketplace: React.FC<LoginProps> = ({ logout, loggedIn, provider }) => {
               </div>
             </div>
           )}
-          {isTicketManagerOpen && (
+          {isTicketManagerOpen && loggedIn && (
             <TicketManager
-              provider={provider}
               onClose={() => setIsTicketManagerOpen(false)}
+              rpc={rpc}
             />
           )}
         </div>
       </main>
-      <Footer />
     </div>
   );
 };

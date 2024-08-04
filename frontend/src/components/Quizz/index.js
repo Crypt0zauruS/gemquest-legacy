@@ -9,7 +9,7 @@ import Header from "../Header";
 import { useRouter } from "next/navigation";
 import { useTheme } from "../../lib/ThemeContext";
 
-const Quizz = ({ quizData, setQuizData, provider, logout }) => {
+const Quizz = ({ quizData, setQuizData, provider, logout, rpc }) => {
   const router = useRouter();
 
   if (!quizData?.quizz || quizData.quizz.length === 0) {
@@ -245,6 +245,7 @@ const Quizz = ({ quizData, setQuizData, provider, logout }) => {
         provider={provider}
         setQuizData={setQuizData}
         logout={logout}
+        rpc={rpc}
       />
     </>
   ) : state.pause ? (

@@ -2,15 +2,16 @@ import { useState, useEffect } from "react";
 import { toast } from "react-toastify";
 import RPC from "../../services/solanaRPC";
 import Loader from "../Loader";
+import QRCode from "react-qr-code";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import { format } from "date-fns";
 
 type TicketManagerProps = {
-  provider: any;
   onClose: () => void;
+  rpc: RPC | null;
 };
 
-const TicketManager = ({ provider, onClose }: TicketManagerProps) => {
+const TicketManager = ({ onClose, rpc }: TicketManagerProps) => {
   type Ticket = {
     status: string | undefined;
     mintTimestamp: string;
@@ -20,27 +21,32 @@ const TicketManager = ({ provider, onClose }: TicketManagerProps) => {
     expiration: number | undefined;
   };
 
-  const [userTickets, setUserTickets] = useState<Ticket[]>([]);
+  const [userTickets, setUserTickets] = useState<Ticket[] | undefined>([]);
   const [ticketPrice, setTicketPrice] = useState(0);
   const [loader, setLoader] = useState(false);
   const [selectedTicket, setSelectedTicket] = useState<Ticket | null>(null);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [showAllTickets, setShowAllTickets] = useState(false);
+  const [isQrModalOpen, setIsQrModalOpen] = useState(false);
+  const [qrData, setQrData] = useState<Object>({});
 
   useEffect(() => {
+    console.log("Fetching ticket data...");
     fetchTicketData(true);
   }, []);
 
   const fetchTicketData = async (init = false) => {
     setLoader(true);
     try {
-      const rpc = new RPC(provider);
+      // const rpc = new RPC(provider);
       const [tickets, price] = await Promise.all([
-        rpc.getUserTickets(),
-        rpc.getPrice(),
+        rpc?.getUserTickets(),
+        rpc?.getPrice(),
       ]);
-      setUserTickets(tickets);
-      setTicketPrice(price);
+      if (tickets) {
+        setUserTickets(tickets);
+      }
+      setTicketPrice(price || 0);
     } catch (err) {
       console.error("Failed to fetch ticket data:", err);
       toast.error("Failed to load ticket information", {
@@ -56,8 +62,8 @@ const TicketManager = ({ provider, onClose }: TicketManagerProps) => {
   const buyTicket = async () => {
     setLoader(true);
     try {
-      const rpc = new RPC(provider);
-      const balance = await rpc.getBalance();
+      //const rpc = new RPC(provider);
+      const balance = await rpc?.getBalance();
       console.log("Balance:", balance, "Ticket Price:", ticketPrice);
       if (Number(balance) < ticketPrice) {
         toast.error("Insufficient funds", {
@@ -67,17 +73,23 @@ const TicketManager = ({ provider, onClose }: TicketManagerProps) => {
         });
         throw new Error("Insufficient funds");
       }
-      await rpc.CreateTicketNFT();
-      setTimeout(async () => {
-        await fetchTicketData(false);
-        toast.success(`Ticket minted successfully!`, {
-          theme: "dark",
-          position: "top-right",
-          autoClose: 5000,
-        });
-      }, 3000);
+      toast.loading("Minting ticket...", {
+        theme: "dark",
+        position: "top-right",
+        autoClose: false,
+      });
+      await rpc?.CreateTicketNFT();
+
+      await fetchTicketData(false);
+      toast.dismiss();
+      toast.success(`Ticket minted successfully!`, {
+        theme: "dark",
+        position: "top-right",
+        autoClose: 5000,
+      });
     } catch (error) {
       console.error("Error during Ticket minting:", error);
+      toast.dismiss();
       toast.error("Error during Ticket minting", {
         theme: "dark",
         position: "top-right",
@@ -90,7 +102,7 @@ const TicketManager = ({ provider, onClose }: TicketManagerProps) => {
 
   const formatDate = (timestamp: string) => {
     if (!timestamp) return "";
-    const date = new Date(parseInt(timestamp) * 1000);
+    const date = new Date(parseInt(timestamp));
     const mintTimestamp = format(date, "MMMM 'the' do, yyyy, h:mm a");
     return mintTimestamp;
   };
@@ -99,8 +111,8 @@ const TicketManager = ({ provider, onClose }: TicketManagerProps) => {
     setSelectedTicket(ticket);
     setIsModalOpen(true);
     try {
-      const rpc = new RPC(provider);
-      const { status, expiration }: any = await rpc.getTicketStatus(
+      //const rpc = new RPC(provider);
+      const { status, expiration }: any = await rpc?.getTicketStatus(
         ticket.mint
       );
       setSelectedTicket((prevTicket) => ({
@@ -122,9 +134,14 @@ const TicketManager = ({ provider, onClose }: TicketManagerProps) => {
     setShowAllTickets(!showAllTickets);
   };
 
+  const handleCloseQrModal = () => {
+    setIsQrModalOpen(false);
+    setQrData("");
+  };
+
   const displayedTickets = showAllTickets
     ? userTickets
-    : userTickets.slice(0, 4);
+    : userTickets?.slice(0, 4);
 
   const TicketModal = ({
     ticket,
@@ -134,6 +151,19 @@ const TicketManager = ({ provider, onClose }: TicketManagerProps) => {
     onClose: () => void;
   }) => {
     if (!ticket) return null;
+
+    const handleAskToActivate = () => {
+      if (ticket.mint) {
+        setQrData({ mintAddress: ticket.mint, timestamp: Date.now() });
+        setIsQrModalOpen(true);
+      } else {
+        toast.error("Error generating QR code", {
+          theme: "dark",
+          position: "top-right",
+          autoClose: 5000,
+        });
+      }
+    };
 
     return (
       <div className="modalnft">
@@ -152,20 +182,55 @@ const TicketManager = ({ provider, onClose }: TicketManagerProps) => {
           <h2>{ticket?.name}</h2>
           <p>Bought: {formatDate(ticket?.mintTimestamp)}</p>
           <p style={{ margin: "10px" }}>
-            Status: {ticket?.status || "Loading..."}
+            Status:{" "}
+            <span
+              style={{
+                color:
+                  ticket?.status === "Activated"
+                    ? "green"
+                    : ticket?.status === "Expired"
+                    ? "red"
+                    : "inherit",
+                fontWeight: "bold",
+              }}
+            >
+              {ticket?.status || "Loading..."}
+            </span>
           </p>
           {ticket?.status === "Activated" && (
-            <p>
+            <p style={{ marginBottom: "10px" }}>
               Expires:{" "}
               {ticket?.expiration
                 ? new Date(ticket?.expiration * 1000).toLocaleString()
                 : "Loading..."}
             </p>
           )}
+          {ticket?.status === "Not activated" && (
+            <button
+              className="btnResult success"
+              onClick={handleAskToActivate}
+              disabled={ticket?.status !== "Not activated"}
+            >
+              Activate
+            </button>
+          )}
           <button className="btnResult" onClick={onClose}>
             Close
           </button>
         </div>
+        {isQrModalOpen && (
+          <div className="qr-code-container">
+            <QRCode value={JSON.stringify(qrData)} />
+            <button
+              className="btnSubmit"
+              type="button"
+              style={{ marginTop: "30px" }}
+              onClick={handleCloseQrModal}
+            >
+              Close or Cancel
+            </button>
+          </div>
+        )}
       </div>
     );
   };
@@ -203,40 +268,43 @@ const TicketManager = ({ provider, onClose }: TicketManagerProps) => {
             <hr />
             <h3>Your Tickets:</h3>
             <div className="rewardsContainer">
-              {displayedTickets
-                // sort by date
-                .sort(
-                  (a, b) =>
-                    parseInt(b.mintTimestamp) - parseInt(a.mintTimestamp)
-                )
-                .map((ticket, index) => (
-                  <div
-                    key={index}
-                    className="rewardItem"
-                    onClick={() => handleTicketClick(ticket)}
-                  >
-                    <img
-                      src={ticket?.image}
-                      alt={ticket?.name}
-                      className="rewardImage"
-                      style={{
-                        width: "100%",
-                        height: "auto",
-                        borderRadius: "10px",
-                        marginBottom: "10px",
-                        cursor: "pointer",
-                      }}
-                    />
-                    <h3>Bought {formatDate(ticket?.mintTimestamp)}</h3>
-                  </div>
-                ))}
+              {displayedTickets &&
+                displayedTickets
+                  // sort by date
+                  .sort(
+                    (a, b) =>
+                      parseInt(b.mintTimestamp) - parseInt(a.mintTimestamp)
+                  )
+                  .map((ticket, index) => (
+                    <div
+                      key={index}
+                      className="rewardItem"
+                      onClick={() => handleTicketClick(ticket)}
+                    >
+                      <img
+                        src={ticket?.image}
+                        alt={ticket?.name}
+                        className="rewardImage"
+                        style={{
+                          width: "100%",
+                          height: "auto",
+                          borderRadius: "10px",
+                          marginBottom: "10px",
+                          cursor: "pointer",
+                        }}
+                      />
+                      <h3>{formatDate(ticket?.mintTimestamp)}</h3>
+                    </div>
+                  ))}
             </div>
-            {userTickets.length > 4 && (
+            {userTickets && userTickets.length > 4 && (
               <button className="btnSubmit" onClick={toggleTicketsDisplay}>
                 {showAllTickets ? "Show Less" : "Show More"}
               </button>
             )}
-            {userTickets.length === 0 && <p>You don't have any tickets yet.</p>}
+            {userTickets && userTickets.length === 0 && (
+              <p>You don't have any tickets yet.</p>
+            )}
           </>
         )}
         <button

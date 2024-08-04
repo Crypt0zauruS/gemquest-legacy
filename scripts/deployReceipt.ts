@@ -12,7 +12,6 @@ import "dotenv/config";
 import fs from "fs";
 import path from "path";
 
-const INITIAL_PRICE_SEED = "initial_price";
 const TOKEN_METADATA_PROGRAM_ID = new PublicKey(MPL_TOKEN_METADATA_PROGRAM_ID);
 
 let wallet: anchor.Wallet;
@@ -39,78 +38,27 @@ async function main() {
   program = new Program(idl, provider);
   console.log("Program ID:", program.programId.toBase58());
 
-  const initialPriceInfo = await initializeInitialPrice();
-  const collectionInfo = await initializeCollection();
+  const collectionInfo = await initializeReceiptCollection();
 
   const utilContent = `
-// GemQuest Ticket Utility File
+// GemQuest Receipt Utility File
 
 // Program ID
 export const PROGRAM_ID = "${program.programId.toBase58()}";
 
-// Initial Price Information
-export const INITIAL_PRICE_PDA = "${initialPriceInfo.pda}";
-export const INITIAL_PRICE = "${initialPriceInfo.price}";
-
-// Collection Information
-export const ticketsCollectionMint = "${collectionInfo.mint}";
-export const ticketsCollectionMetadata = "${collectionInfo.metadata}";
-
-// Seeds
-export const INITIAL_PRICE_SEED = "${INITIAL_PRICE_SEED}";
+// Receipt Collection Information
+export const receiptsCollectionMint = "${collectionInfo.mint}";
+export const receiptsCollectionMetadata = "${collectionInfo.metadata}";
 
 // Other Constants
 export const TOKEN_METADATA_PROGRAM_ID = "${TOKEN_METADATA_PROGRAM_ID.toBase58()}";
   `;
 
-  fs.writeFileSync(path.join(__dirname, "util3Ticket.js"), utilContent);
-  console.log("utilTicket.js file created successfully.");
+  fs.writeFileSync(path.join(__dirname, "util4Receipt.js"), utilContent);
+  console.log("util4Receipt.js file created successfully.");
 }
 
-async function initializeInitialPrice() {
-  const [initialPricePDA] = await PublicKey.findProgramAddress(
-    [Buffer.from(INITIAL_PRICE_SEED)],
-    program.programId
-  );
-
-  try {
-    const account = await program.account.initialPriceAccount
-      .fetch(initialPricePDA)
-      .catch(() => null);
-
-    if (!account) {
-      await program.methods
-        .initializeInitialPrice()
-        .accounts({
-          initialPriceAccount: initialPricePDA,
-          admin: wallet.publicKey,
-          systemProgram: web3.SystemProgram.programId,
-        })
-        .rpc();
-
-      console.log("Initial price initialized successfully.");
-    } else {
-      console.log("Initial price account already exists.");
-    }
-
-    console.log("Initial Price PDA:", initialPricePDA.toBase58());
-
-    const fetchedAccount = await program.account.initialPriceAccount.fetch(
-      initialPricePDA
-    );
-    console.log("Initial Price:", fetchedAccount.price.toString());
-
-    return {
-      pda: initialPricePDA.toBase58(),
-      price: fetchedAccount.price.toString(),
-    };
-  } catch (error) {
-    console.error("Error initializing initial price:", error);
-    throw error;
-  }
-}
-
-async function initializeCollection() {
+async function initializeReceiptCollection() {
   const collectionMint = Keypair.generate();
   const collectionTokenAccount = await getAssociatedTokenAddress(
     collectionMint.publicKey,
@@ -124,9 +72,9 @@ async function initializeCollection() {
   try {
     await program.methods
       .initializeCollection(
-        "GemQuest Tickets Collection",
-        "GQT",
-        "ipfs://QmWGuL3UFv3wNbuzWGzeod2LDVMjhspL6Qq86ZpzWMaWWU"
+        "GemQuest Exchanges Receipts",
+        "GQRER",
+        "ipfs://QmewwXMsbitwo4U5akfRdsy3uafM9AdKAi6ZdgJU26ZqX7"
       )
       .accounts({
         admin: wallet.publicKey,
@@ -143,16 +91,19 @@ async function initializeCollection() {
       .signers([collectionMint])
       .rpc();
 
-    console.log("Collection initialized successfully.");
-    console.log("Collection Mint:", collectionMint.publicKey.toBase58());
-    console.log("Collection Metadata:", collectionMetadata.toBase58());
+    console.log("Receipt Collection initialized successfully.");
+    console.log(
+      "Receipt Collection Mint:",
+      collectionMint.publicKey.toBase58()
+    );
+    console.log("Receipt Collection Metadata:", collectionMetadata.toBase58());
 
     return {
       mint: collectionMint.publicKey.toBase58(),
       metadata: collectionMetadata.toBase58(),
     };
   } catch (error) {
-    console.error("Error initializing collection:", error);
+    console.error("Error initializing receipt collection:", error);
     throw error;
   }
 }

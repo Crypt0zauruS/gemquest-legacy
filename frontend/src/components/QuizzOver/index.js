@@ -20,6 +20,7 @@ const QuizzOver = forwardRef((props, ref) => {
     provider,
     setQuizData,
     logout,
+    rpc,
   } = props;
 
   const [loading, setLoading] = useState(false);
@@ -65,7 +66,7 @@ const QuizzOver = forwardRef((props, ref) => {
       return;
     }
     setLoading(true);
-    const rpc = new RPC(provider);
+    // const rpc = new RPC(provider);
     const gemValues = [20, 10, 5, 1];
     let mintingTasks = [];
     try {

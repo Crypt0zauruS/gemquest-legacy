@@ -1,7 +1,7 @@
 
 use anchor_lang::prelude::*;
 
-declare_id!("FYw2Ae2rc9iYLU69Nc3HHxPnfXDijhHFuH1GAdmQuUXv");
+declare_id!("5PhDqK5idAihN4MhbwDAHE72vgjLeUYSkdiqy6N3REbR");
 
 pub mod instructions;
 
@@ -54,6 +54,15 @@ pub mod gemquest {
         instructions::create_ticket_nft::get_initial_price(ctx)
     }
 
+    pub fn initialize_collection(
+        ctx: Context<InitializeCollection>,
+        name: String,
+        symbol: String,
+        uri: String,
+    ) -> Result<()> {
+        instructions::create_ticket_nft::initialize_collection(ctx, name, symbol, uri)
+    }
+
     pub fn create_ticket_nft(
         ctx: Context<CreateTicketNFT>,
         nft_name: String,
@@ -64,6 +73,9 @@ pub mod gemquest {
         instructions::create_ticket_nft::create_ticket_nft(ctx, nft_name, nft_symbol, nft_uri)
     }
     
+    pub fn create_receipt(ctx: Context<CreateReceipt>, receipt_name: String, receipt_symbol: String, receipt_uri: String) -> Result<()> {
+        instructions::create_receipt(ctx, receipt_name, receipt_symbol, receipt_uri)
+    }
 
     pub fn approve_token(ctx: Context<ApproveToken>, amount: u64) -> Result<()> {
         instructions::approve_token::approve_token(ctx, amount)

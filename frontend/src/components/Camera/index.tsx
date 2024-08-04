@@ -2,13 +2,19 @@ import { useEffect, useRef } from "react";
 import { Html5Qrcode } from "html5-qrcode";
 import { useTheme } from "../../lib/ThemeContext";
 
-const Camera = () => {
+const Camera = ({ topic }: { topic: string }) => {
   const scannerRef = useRef<Html5Qrcode | null>(null);
   const qrCodeReaderRef = useRef<HTMLDivElement | null>(null);
-  const { setTheme } = useTheme();
+  const { setTheme, setNftToBurn, setTicketToActivate } = useTheme();
 
   const onScanSuccess = (decodedText: string) => {
-    setTheme(decodedText);
+    if (topic === "quizz") {
+      setTheme(decodedText);
+    } else if (topic === "burnUserNFT") {
+      setNftToBurn(decodedText);
+    } else if (topic === "activateTicket") {
+      setTicketToActivate(decodedText);
+    }
   };
 
   const onScanFailure = (errorMessage: string) => {

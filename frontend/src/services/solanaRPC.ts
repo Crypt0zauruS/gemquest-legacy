@@ -2,7 +2,6 @@ import {
   Connection,
   Keypair,
   LAMPORTS_PER_SOL,
-  ParsedAccountData,
   PublicKey,
   SystemProgram,
   Transaction,
@@ -40,7 +39,14 @@ import {
   nftMetadata,
   ipfsGateway,
   ticketMetadata,
+  ticketsCollectionMint,
+  receiptsCollectionMint,
 } from "../utils";
+
+interface BurnNFTParams {
+  userWallet: string;
+  nftMintAddress: string;
+}
 
 export default class SolanaRpc {
   private provider: IProvider;
@@ -153,6 +159,42 @@ export default class SolanaRpc {
     }
   };
 
+  waitForFinalization = async (
+    connection: Connection,
+    signature: string,
+    maxRetries: number = 30,
+    interval: number = 5000
+  ): Promise<void> => {
+    let retries = 0;
+    while (retries < maxRetries) {
+      const status = await connection.getSignatureStatus(signature);
+
+      if (status.value?.confirmationStatus === "finalized") {
+        console.log(`Transaction ${signature} finalized`);
+
+        // Vérifier si la transaction a réussi
+        const tx = await connection.getTransaction(signature, {
+          commitment: "finalized",
+        });
+
+        if (tx?.meta?.err) {
+          throw new Error(
+            `Transaction ${signature} failed: ${JSON.stringify(tx.meta.err)}`
+          );
+        }
+
+        return;
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, interval));
+      retries++;
+    }
+
+    throw new Error(
+      `Transaction ${signature} failed to finalize after ${maxRetries} attempts`
+    );
+  };
+
   updateInitialPrice = async (newPrice: number): Promise<string> => {
     try {
       const adminWallet = await this.getAdminWallet();
@@ -167,16 +209,36 @@ export default class SolanaRpc {
         new PublicKey(idl.address)
       );
 
-      const tx = await program.methods
-        .updateInitialPrice(new BN(newPrice))
-        .accounts({
-          initialPriceAccount: pda,
-          admin: adminWallet.publicKey,
-        })
-        .rpc();
+      const instruction = program.instruction.updateInitialPrice(
+        new BN(newPrice),
+        {
+          accounts: {
+            initialPriceAccount: pda,
+            admin: adminWallet.publicKey,
+          },
+        }
+      );
 
-      console.log("Prix initial mis à jour. Transaction:", tx);
-      return tx;
+      const latestBlockhash = await connection.getLatestBlockhash("finalized");
+      const transaction = new Transaction({
+        feePayer: adminWallet.publicKey,
+        ...latestBlockhash,
+      }).add(instruction);
+
+      const signature = await sendAndConfirmTransaction(
+        connection,
+        transaction,
+        [adminWallet],
+        { commitment: "confirmed" }
+      );
+
+      await this.waitForFinalization(connection, signature);
+
+      console.log(
+        "Prix initial mis à jour et finalisé. Transaction:",
+        signature
+      );
+      return signature;
     } catch (error) {
       console.error("Error in updateInitialPrice:", error);
       throw error;
@@ -185,14 +247,7 @@ export default class SolanaRpc {
 
   activateTicket = async (mintAddress: string): Promise<string> => {
     try {
-      const solanaWallet = new SolanaWallet(this.provider);
-      const connectionConfig = await solanaWallet.request<
-        string[],
-        CustomChainConfig
-      >({
-        method: "solana_provider_config",
-        params: [],
-      });
+      const connectionConfig = { rpcTarget: "https://api.devnet.solana.com" };
       const conn = new Connection(connectionConfig.rpcTarget);
       const adminWallet = await this.getAdminWallet();
       const provider = new AnchorProvider(conn, adminWallet as any, {
@@ -208,23 +263,42 @@ export default class SolanaRpc {
         program.programId
       );
 
-      const tx = await (program.methods.activateTicket() as any)
-        .accounts({
+      const instruction = program.instruction.activateTicket({
+        accounts: {
           ticketStatusAccount: ticketStatusPDA,
+          mint: mintPublicKey,
           admin: adminWallet.publicKey,
-        })
-        .rpc();
+        },
+      });
 
-      console.log("Ticket activated. Transaction signature:", tx);
+      const latestBlockhash = await conn.getLatestBlockhash("finalized");
 
-      return tx;
+      const transaction = new Transaction({
+        feePayer: adminWallet.publicKey,
+        ...latestBlockhash,
+      }).add(instruction);
+
+      const signature = await sendAndConfirmTransaction(
+        conn,
+        transaction,
+        [adminWallet],
+        {
+          commitment: "finalized",
+        }
+      );
+
+      console.log("Ticket activated. Transaction signature:", signature);
+
+      return signature;
     } catch (error) {
       console.error("Error activating ticket:", error);
       throw error;
     }
   };
 
-  getTicketStatus = async (mintAddress: string): Promise<{}> => {
+  getTicketStatus = async (
+    mintAddress: string
+  ): Promise<{ status: string; expiration: number }> => {
     try {
       const connection = new Connection("https://api.devnet.solana.com");
       const mintPublicKey = new PublicKey(mintAddress);
@@ -236,20 +310,25 @@ export default class SolanaRpc {
       if (!accountInfo || !accountInfo.data) {
         throw new Error("Account not found or data not available");
       }
-      const status = accountInfo.data.readUInt32LE(8);
-      const expiration = accountInfo.data.readBigInt64LE(12);
-      console.log("Ticket status:", status);
-      console.log("Ticket expiration:", expiration);
+
+      // Les 8 premiers octets sont généralement réservés pour le discriminant
+      const status = accountInfo.data.readUInt8(8); // Lire un seul octet pour le statut
+      const expiration = accountInfo.data.readBigInt64LE(9); // Lire 8 octets pour l'expiration, commençant à l'index 9
+
+      console.log("Raw ticket status:", status);
+      console.log("Raw ticket expiration:", expiration);
+
       const currentTime = BigInt(Math.floor(Date.now() / 1000));
       let statusString;
 
       if (status === 0) {
         statusString = "Not activated";
-      } else if (status === 1 && expiration > currentTime) {
-        statusString = "Activated";
+      } else if (status === 1) {
+        statusString = expiration > currentTime ? "Activated" : "Expired";
       } else {
-        statusString = "Expired";
+        statusString = "Unknown";
       }
+
       return {
         status: statusString,
         expiration: Number(expiration),
@@ -307,6 +386,7 @@ export default class SolanaRpc {
       const signature = await sendAndConfirmTransaction(conn, transaction, [
         adminWallet,
       ]);
+      await this.waitForFinalization(conn, signature);
       console.log("Transaction confirmed:", signature);
       return signature;
     } catch (error) {
@@ -512,6 +592,10 @@ export default class SolanaRpc {
         transactionApprove
       );
 
+      if (signedTx?.signature) {
+        await this.waitForFinalization(conn, signedTx.signature);
+      }
+
       console.log("Approve Token Transaction confirmed:", signedTx);
 
       // Fetch the updated token account info
@@ -608,7 +692,7 @@ export default class SolanaRpc {
     nft_price: number,
     gemAmounts: { [key: string]: number }
   ): Promise<string> => {
-    const maxRetries = 5;
+    const maxRetries = 10;
     const retryDelay = 2000; // 2 secondes
 
     const retryOperation = async <T>(
@@ -797,7 +881,7 @@ export default class SolanaRpc {
           await this.refundGems(refund);
         }
         console.log("Refunded amount:", gemAmounts.refund);
-
+        await this.waitForFinalization(conn, signature);
         return signature;
       } catch (error) {
         console.error("Error in burnTokenTransferNFT:", error);
@@ -813,6 +897,253 @@ export default class SolanaRpc {
       }
     } catch (error) {
       console.error("Error in burnTokenTransferNFT:", error);
+      throw error;
+    }
+  };
+
+  burnUserNFT = async (qrCodeData: string): Promise<string> => {
+    try {
+      // Parser les données du QR code
+      const parsedData: BurnNFTParams = JSON.parse(qrCodeData);
+      const { userWallet, nftMintAddress } = parsedData;
+
+      const connectionConfig = { rpcTarget: "https://api.devnet.solana.com" };
+      const conn = new Connection(connectionConfig.rpcTarget);
+      const adminWallet = await this.getAdminWallet();
+      const provider = new AnchorProvider(conn, adminWallet as any, {
+        preflightCommitment: "finalized",
+      });
+      const program = new Program(idl as any, provider);
+      setProvider(provider);
+
+      const MINT_NFT_ACCOUNT = new PublicKey(nftMintAddress);
+      const userPublicKey = new PublicKey(userWallet);
+
+      // Obtenir l'ATA de l'utilisateur pour le NFT
+      const userNftATA = await getOrCreateAssociatedTokenAccount(
+        program.provider.connection,
+        adminWallet,
+        MINT_NFT_ACCOUNT,
+        userPublicKey
+      );
+
+      const burnInstruction = program.instruction.burnTokenOnly({
+        accounts: {
+          associatedTokenAccount: userNftATA.address,
+          mintTokenAccount: MINT_NFT_ACCOUNT,
+          fromAuthority: adminWallet.publicKey,
+          tokenProgram: TOKEN_PROGRAM_ID,
+        },
+      });
+
+      const latestBlockhash = await conn.getLatestBlockhash("finalized");
+      const transaction = new Transaction({
+        feePayer: adminWallet.publicKey,
+        ...latestBlockhash,
+      }).add(burnInstruction);
+
+      // Signer et envoyer la transaction avec le portefeuille admin
+      const signature = await sendAndConfirmTransaction(conn, transaction, [
+        adminWallet,
+      ]);
+      await this.waitForFinalization(conn, signature);
+      console.log("NFT burned successfully. Transaction signature:", signature);
+      return signature;
+    } catch (error) {
+      console.error("Error in burnNFT:", error);
+      throw error;
+    }
+  };
+
+  createReceipt = async (
+    userWallet: string,
+    burnedNftMintAddress: string
+  ): Promise<string> => {
+    try {
+      const TOKEN_METADATA_PROGRAM_ID = new PublicKey(
+        MPL_TOKEN_METADATA_PROGRAM_ID
+      );
+      const connectionConfig = { rpcTarget: "https://api.devnet.solana.com" };
+      const conn = new Connection(connectionConfig.rpcTarget);
+      const adminWallet = await this.getAdminWallet();
+      const provider = new AnchorProvider(conn, adminWallet as any, {
+        preflightCommitment: "finalized",
+      });
+      const program = new Program(idl as any, provider);
+      setProvider(provider);
+
+      const userPublicKey = new PublicKey(userWallet);
+
+      // Trouver le NFT correspondant dans le tableau nftMetadata
+      const burnedNft = nftMetadata.find(
+        (nft) => nft.address === burnedNftMintAddress
+      );
+      if (!burnedNft) {
+        throw new Error("Burned NFT not found in metadata");
+      }
+
+      // Construire l'URI du reçu à partir des informations du NFT brûlé
+      const receiptUri = burnedNft.uriReceipt;
+
+      // Générer un nouveau keypair pour le reçu NFT
+      const receiptMintKeypair = Keypair.generate();
+
+      // Dériver les comptes nécessaires
+      const [metadataAccount] = await PublicKey.findProgramAddress(
+        [
+          Buffer.from("metadata"),
+          TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+          receiptMintKeypair.publicKey.toBuffer(),
+        ],
+        TOKEN_METADATA_PROGRAM_ID
+      );
+
+      const associatedReceiptTokenAccount = getAssociatedTokenAddressSync(
+        receiptMintKeypair.publicKey,
+        userPublicKey
+      );
+
+      // Récupérer les informations de la collection pour les reçus
+      const collectionMint = new PublicKey(receiptsCollectionMint);
+      const [collectionMetadata] = await PublicKey.findProgramAddress(
+        [
+          Buffer.from("metadata"),
+          TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+          collectionMint.toBuffer(),
+        ],
+        TOKEN_METADATA_PROGRAM_ID
+      );
+      const [collectionMasterEdition] = await PublicKey.findProgramAddress(
+        [
+          Buffer.from("metadata"),
+          TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+          collectionMint.toBuffer(),
+          Buffer.from("edition"),
+        ],
+        TOKEN_METADATA_PROGRAM_ID
+      );
+
+      // Préparer les données du reçu
+      const receiptName = `Receipt for ${burnedNft.name}`;
+      const receiptSymbol = `${burnedNft.symbol}R`;
+
+      const createReceiptInstruction = program.instruction.createReceipt(
+        receiptName,
+        receiptSymbol,
+        receiptUri,
+        {
+          accounts: {
+            user: userPublicKey,
+            admin: adminWallet.publicKey,
+            metadataAccount,
+            mintReceiptAccount: receiptMintKeypair.publicKey,
+            associatedReceiptTokenAccount,
+            collectionMint,
+            collectionMetadata,
+            collectionMasterEdition,
+            tokenProgram: TOKEN_PROGRAM_ID,
+            tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
+            associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
+            systemProgram: SystemProgram.programId,
+            rent: web3.SYSVAR_RENT_PUBKEY,
+          },
+        }
+      );
+
+      const latestBlockhash = await conn.getLatestBlockhash("finalized");
+      const transaction = new Transaction({
+        feePayer: adminWallet.publicKey,
+        ...latestBlockhash,
+      }).add(createReceiptInstruction);
+
+      transaction.partialSign(receiptMintKeypair);
+
+      const signature = await sendAndConfirmTransaction(conn, transaction, [
+        adminWallet,
+        receiptMintKeypair,
+      ]);
+      await this.waitForFinalization(conn, signature);
+      console.log(
+        "Receipt created successfully. Transaction signature:",
+        signature
+      );
+      return signature;
+    } catch (error) {
+      console.error("Error in createReceipt:", error);
+      throw error;
+    }
+  };
+
+  fetchReceipt = async (): Promise<any[]> => {
+    try {
+      const users = await this.getAccounts();
+      const userWallet = new PublicKey(users[0]);
+      const conn = new Connection("https://api.devnet.solana.com");
+
+      // Adresse de la collection des reçus
+      const RECEIPT_COLLECTION_ADDRESS = new PublicKey(receiptsCollectionMint);
+
+      const tokenAccounts = await conn.getParsedTokenAccountsByOwner(
+        userWallet,
+        {
+          programId: TOKEN_PROGRAM_ID,
+        }
+      );
+
+      const receipts: any[] = [];
+
+      for (const account of tokenAccounts.value) {
+        const tokenInfo = account.account.data.parsed.info;
+        if (
+          tokenInfo.tokenAmount.decimals === 0 &&
+          tokenInfo.tokenAmount.amount === "1"
+        ) {
+          const mintPublicKey = new PublicKey(tokenInfo.mint);
+          const nftMetadata = await fetchDigitalAsset(
+            this.umi,
+            mintPublicKey as any
+          );
+
+          // Vérifier si le NFT appartient à la collection des reçus
+          if (
+            nftMetadata.metadata.collection?.__option === "Some" &&
+            nftMetadata.metadata.collection?.value.key ===
+              RECEIPT_COLLECTION_ADDRESS.toBase58()
+          ) {
+            // Récupérer la signature de transaction du mint
+            const signatures = await conn.getSignaturesForAddress(
+              mintPublicKey,
+              { limit: 1 }
+            );
+            const txDetails = await conn.getTransaction(
+              signatures[0]?.signature
+            );
+            const mintTimestamp = txDetails?.blockTime
+              ? txDetails.blockTime * 1000
+              : null;
+
+            // Récupérer les métadonnées du reçu
+            const uri = nftMetadata.metadata.uri.replace(
+              "ipfs://",
+              ipfsGateway
+            );
+            const response = await fetch(uri);
+            const metadata = await response.json();
+
+            receipts.push({
+              name: nftMetadata.metadata.name,
+              image: metadata.image.replace("ipfs://", ipfsGateway),
+              description: metadata.description,
+              mintTimestamp,
+              mint: nftMetadata.metadata.mint,
+            });
+          }
+        }
+      }
+
+      return receipts;
+    } catch (error) {
+      console.error("Erreur lors de la récupération des reçus:", error);
       throw error;
     }
   };
@@ -878,6 +1209,33 @@ export default class SolanaRpc {
       program.programId
     );
 
+    // Ajout des nouvelles adresses pour la collection
+    // const [collectionAuthorityPDA] = PublicKey.findProgramAddressSync(
+    //   [Buffer.from("collection")],
+    //   program.programId
+    // );
+
+    const collectionMint = new PublicKey(ticketsCollectionMint);
+
+    const [collectionMetadata] = await PublicKey.findProgramAddress(
+      [
+        Buffer.from(SEED_METADATA),
+        TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+        collectionMint.toBuffer(),
+      ],
+      TOKEN_METADATA_PROGRAM_ID
+    );
+
+    const [collectionMasterEdition] = await PublicKey.findProgramAddress(
+      [
+        Buffer.from(SEED_METADATA),
+        TOKEN_METADATA_PROGRAM_ID.toBuffer(),
+        collectionMint.toBuffer(),
+        Buffer.from("edition"),
+      ],
+      TOKEN_METADATA_PROGRAM_ID
+    );
+
     const buyerInstruction = program.instruction.createTicketNft(
       dataNFT.name,
       dataNFT.symbol,
@@ -886,11 +1244,16 @@ export default class SolanaRpc {
         accounts: {
           payer: buyer,
           admin: adminWallet.publicKey,
+          // updateAuthority: adminWallet.publicKey,
           initialPriceAccount: initialPricePDA,
           metadataAccount,
           mintNftAccount: mintNftTokenAccount.publicKey,
           associatedNftTokenAccount: associatedNftTokenAccountAddress,
           ticketStatusAccount: ticketStatusPDA,
+          //collectionAuthority: adminWallet.publicKey,
+          collectionMint,
+          collectionMetadata,
+          collectionMasterEdition,
           tokenProgram: TOKEN_PROGRAM_ID,
           tokenMetadataProgram: TOKEN_METADATA_PROGRAM_ID,
           associatedTokenProgram: ASSOCIATED_TOKEN_PROGRAM_ID,
@@ -919,8 +1282,10 @@ export default class SolanaRpc {
           preflightCommitment: "confirmed",
         }
       );
-      console.log("signature", signature);
-      await conn.confirmTransaction(signature, "confirmed");
+
+      // await conn.confirmTransaction(signature, "confirmed");
+      await this.waitForFinalization(conn, signature);
+      console.log("Ticket NFT created. Signature:", signature);
       return signature;
     } catch (error) {
       if (error instanceof web3.SendTransactionError) {
@@ -934,75 +1299,63 @@ export default class SolanaRpc {
   };
 
   getUserTickets = async () => {
-    const users = await this.getAccounts();
-    const userWallet = new PublicKey(users[0]);
-    const connectionConfig = {
-      rpcTarget: "https://api.devnet.solana.com",
-    };
-    const conn = new Connection(connectionConfig.rpcTarget);
-    const adminWallet = await this.getAdminWallet();
-    // Récupérer tous les comptes de jetons de l'utilisateur
-    const tokenAccounts = await conn.getTokenAccountsByOwner(
-      new PublicKey(userWallet),
-      {
-        programId: TOKEN_PROGRAM_ID,
-      }
-    );
-
-    const tickets: any[] = [];
-
-    for (const tokenAccount of tokenAccounts.value) {
-      const accountInfo = await conn.getParsedAccountInfo(tokenAccount.pubkey);
-      const tokenInfo = (accountInfo.value?.data as ParsedAccountData).parsed
-        .info;
-      // Vérifier si c'est un NFT (amount = 1 et decimals = 0)
-      if (
-        tokenInfo.tokenAmount.decimals === 0 &&
-        tokenInfo.tokenAmount.amount === "1"
-      ) {
-        const mintPublicKey = new PublicKey(tokenInfo.mint);
-        const signatures = await conn.getSignaturesForAddress(mintPublicKey);
-        if (signatures.length > 0) {
-          // Récupérer les détails de la transaction
-          const txDetails = await conn.getTransaction(signatures[0]?.signature);
-          // Récupérer le Program ID
-          // let programId = "Unknown";
-          // if (
-          //   txDetails &&
-          //   txDetails?.transaction?.message?.accountKeys?.length > 0
-          // ) {
-          //   programId =
-          //     txDetails.transaction.message.accountKeys[0]?.toString();
-          // }
-          //if (programId === idl.address) {
-          // console.log(txDetails, idl.address);
-          const asset = await fetchDigitalAsset(this.umi, tokenInfo.mint);
+    try {
+      const users = await this.getAccounts();
+      const userWallet = new PublicKey(users[0]);
+      const conn = new Connection("https://api.devnet.solana.com");
+      const tokenAccounts = await conn.getParsedTokenAccountsByOwner(
+        userWallet,
+        {
+          programId: TOKEN_PROGRAM_ID,
+        }
+      );
+      const tickets: any[] = [];
+      for (const account of tokenAccounts.value) {
+        const tokenInfo = account.account.data.parsed.info;
+        if (
+          tokenInfo.tokenAmount.decimals === 0 &&
+          tokenInfo.tokenAmount.amount === "1"
+        ) {
+          const mintPublicKey = new PublicKey(tokenInfo.mint);
+          const nftMetadata = await fetchDigitalAsset(
+            this.umi,
+            mintPublicKey as any
+          );
           if (
-            asset.metadata.symbol === "GQTCK" &&
-            asset.metadata.updateAuthority === adminWallet.publicKey.toBase58()
+            nftMetadata.metadata.collection?.__option === "Some" &&
+            nftMetadata.metadata.collection?.value.key === ticketsCollectionMint
           ) {
-            const uri = asset.metadata.uri.replace("ipfs://", ipfsGateway);
+            const mintAddress = new PublicKey(nftMetadata.metadata.mint);
+            const signatures = await conn.getSignaturesForAddress(mintAddress, {
+              limit: 1,
+            });
+            const txDetails = await conn.getTransaction(
+              signatures[0]?.signature
+            );
+            const mintTimestamp = txDetails?.blockTime
+              ? txDetails.blockTime * 1000
+              : null;
+
+            const uri = nftMetadata.metadata.uri.replace(
+              "ipfs://",
+              ipfsGateway
+            );
             const jsonData = await fetch(uri);
             const image = (await jsonData.json()).image;
-
-            let mintTimestamp;
-            if (txDetails?.blockTime) {
-              mintTimestamp = txDetails.blockTime;
-            } else {
-              mintTimestamp = null;
-            }
             tickets.push({
-              mint: mintPublicKey.toBase58(),
-              name: asset.metadata.name,
+              mint: nftMetadata.metadata.mint,
+              name: nftMetadata.metadata.name,
               image: image.replace("ipfs://", ipfsGateway),
               mintTimestamp,
             });
           }
-          // }
         }
       }
+      return tickets;
+    } catch (error) {
+      console.error("Erreur lors de la récupération des NFTs:", error);
+      return [];
     }
-    return tickets;
   };
 
   fetchNFTByUser = async (): Promise<{ [key: string]: number }> => {

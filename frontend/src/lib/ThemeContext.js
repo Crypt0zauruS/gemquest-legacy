@@ -7,6 +7,8 @@ export const ThemeProvider = ({ children }) => {
   const [theme, setTheme] = useState(null);
   const [difficulty, setDifficulty] = useState("easy");
   const [isSignedIn, setIsSignedIn] = useState(false);
+  const [nftToBurn, setNftToBurn] = useState(null);
+  const [ticketToActivate, setTicketToActivate] = useState(null);
 
   return (
     <ThemeContext.Provider
@@ -17,6 +19,10 @@ export const ThemeProvider = ({ children }) => {
         setDifficulty,
         isSignedIn,
         setIsSignedIn,
+        nftToBurn,
+        setNftToBurn,
+        ticketToActivate,
+        setTicketToActivate,
       }}
     >
       {children}

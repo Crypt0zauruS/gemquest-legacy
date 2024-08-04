@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from "react";
 import { useRouter } from "next/router";
-import Footer from "@/components/Footer";
 import Loader from "../components/Loader";
 import Header from "../components/Header";
 import RPC from "../services/solanaRPC";
 import { LAMPORTS_PER_SOL } from "@solana/web3.js";
 import Camera from "../components/Camera";
-import { sciFiThemes, messageToSign } from "../utils";
+import { sciFiThemes, messageToSign, qrCodeValidity } from "../utils";
 import { ToastContainer, toast } from "react-toastify";
 import { useTheme } from "../lib/ThemeContext";
 import SciFiSelect from "../components/SciFiSelect";
@@ -18,9 +17,16 @@ interface LoginProps {
   logout: () => Promise<void>;
   loggedIn: boolean;
   provider: any;
+  rpc: RPC | null;
 }
 
-const Login: React.FC<LoginProps> = ({ login, logout, loggedIn, provider }) => {
+const Login: React.FC<LoginProps> = ({
+  login,
+  logout,
+  loggedIn,
+  provider,
+  rpc,
+}) => {
   const router = useRouter();
   const [error, setError] = useState("");
   const [status, setStatus] = useState("Resistance is Futile");
@@ -36,37 +42,50 @@ const Login: React.FC<LoginProps> = ({ login, logout, loggedIn, provider }) => {
     setDifficulty,
     setIsSignedIn,
     isSignedIn,
+    nftToBurn,
+    ticketToActivate,
   } = useTheme();
   const [showScanner, setShowScanner] = useState(false);
   const [hide, setHide] = useState(true);
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [isAdminModal, setIsAdminModal] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [currentAdminAction, setCurrentAdminAction] = useState<string | null>(
+    null
+  );
+  const [ticketPrice, setTicketPrice] = useState<number | null>(0.1);
+  const [isChangingPrice, setIsChangingPrice] = useState(false);
 
   useEffect(() => {
+    setIsAdmin(false);
     if (provider && loggedIn) {
       setLoader(true);
       try {
         const fetchInfos = async () => {
-          const rpc = new RPC(provider);
-          const accounts = await rpc.getAccounts();
-          const address = accounts[0];
-          console.log(address);
-          // Handle message signing
-          const signature = await rpc.signMessage(messageToSign);
+          //const rpc = new RPC(provider);
+          const address: string = (await rpc?.getAccounts())?.[0] || "";
+          const signature = await rpc?.signMessage(messageToSign);
           if (!signature) {
             toast.error("You must sign to enjoy GemQuest", {
+              theme: "dark",
               position: "top-right",
               autoClose: 5000,
               hideProgressBar: false,
               closeOnClick: true,
               pauseOnHover: true,
-              draggable: true,
+              draggable: false,
               progress: undefined,
             });
             logout();
             return;
           }
           setIsSignedIn(true);
-          const balance = await rpc.getBalance();
-          setBalance(parseFloat(balance) / LAMPORTS_PER_SOL);
+          const adminWallet = await rpc?.getAdminWallet();
+          if (adminWallet?.publicKey.toBase58() === address) {
+            setIsAdmin(true);
+          }
+          const balance = await rpc?.getBalance();
+          setBalance(balance ? parseFloat(balance) / LAMPORTS_PER_SOL : null);
           setAddress(address);
           setStatus("You have been assimilated");
         };
@@ -75,6 +94,7 @@ const Login: React.FC<LoginProps> = ({ login, logout, loggedIn, provider }) => {
         console.error(error);
         setError("An error occurred");
         setStatus("Resistance is Futile");
+        setIsAdmin(false);
         setBalance(null);
         setAddress(null);
       } finally {
@@ -85,7 +105,7 @@ const Login: React.FC<LoginProps> = ({ login, logout, loggedIn, provider }) => {
       setAddress(null);
       setStatus("Resistance is Futile");
     }
-  }, [provider, loggedIn]);
+  }, [provider]);
 
   const openModal = () => {
     setIsModalOpen(true);
@@ -106,16 +126,249 @@ const Login: React.FC<LoginProps> = ({ login, logout, loggedIn, provider }) => {
       setTheme(undefined);
       setDifficulty("easy");
       toast.error("Invalid QR Code", {
+        theme: "dark",
         position: "top-right",
         autoClose: 5000,
         hideProgressBar: false,
         closeOnClick: true,
         pauseOnHover: true,
-        draggable: true,
+        draggable: false,
         progress: undefined,
       });
     }
     setLoading(false);
+  };
+
+  const handleBurnUserNFT = async (data: string) => {
+    setIsScannerOpen(false);
+    if (!isAdmin) return;
+    if (data && isAdmin && isSignedIn) {
+      setLoading(true);
+      try {
+        //const rpc = new RPC(provider);
+        // Vérification du format des données
+        let parsedData: {
+          userWallet: string;
+          nftMintAddress: string;
+          timestamp: number;
+        };
+        try {
+          parsedData = JSON.parse(data);
+          if (!parsedData.userWallet || !parsedData.nftMintAddress) {
+            throw new Error("Invalid data format");
+          }
+          if (Date.now() - parsedData.timestamp > qrCodeValidity) {
+            throw new Error("QR code expired");
+          }
+          // Vérification supplémentaire pour s'assurer que les adresses sont valides
+          if (
+            !/^[A-HJ-NP-Za-km-z1-9]{32,44}$/.test(parsedData.userWallet) ||
+            !/^[A-HJ-NP-Za-km-z1-9]{32,44}$/.test(parsedData.nftMintAddress)
+          ) {
+            throw new Error("Invalid wallet or NFT address format");
+          }
+        } catch (parseError) {
+          console.error("Error parsing QR code data:", parseError);
+          toast.error("Invalid QR code format", {
+            theme: "dark",
+            position: "top-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: false,
+            progress: undefined,
+          });
+          return;
+        }
+
+        toast.loading("Burning NFT...", {
+          theme: "dark",
+          position: "top-right",
+          autoClose: 10000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: false,
+          progress: undefined,
+        });
+
+        const signature = await rpc?.burnUserNFT(data);
+        if (signature) {
+          toast.dismiss();
+          toast.success("NFT burned successfully", {
+            theme: "dark",
+            position: "top-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: false,
+            progress: undefined,
+          });
+          // minting receipt
+
+          toast.loading("Minting receipt...", {
+            theme: "dark",
+            position: "top-right",
+            autoClose: 10000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: false,
+            progress: undefined,
+          });
+
+          const receiptSignature = await rpc?.createReceipt(
+            parsedData.userWallet,
+            parsedData.nftMintAddress
+          );
+          if (receiptSignature) {
+            toast.dismiss();
+            toast.success("Receipt minted successfully", {
+              theme: "dark",
+              position: "top-right",
+              autoClose: 5000,
+              hideProgressBar: false,
+              closeOnClick: true,
+              pauseOnHover: true,
+              draggable: false,
+              progress: undefined,
+            });
+          } else {
+            throw new Error("An error occurred while minting the receipt");
+          }
+        } else {
+          throw new Error("An error occurred while burning the NFT");
+        }
+      } catch (error) {
+        console.error(error);
+        toast.dismiss();
+        toast.error("An error occurred while burning the NFT", {
+          theme: "dark",
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: false,
+          progress: undefined,
+        });
+      } finally {
+        setLoading(false);
+
+        setCurrentAdminAction(null);
+      }
+    }
+  };
+
+  const handleActivateTicket = async (data: string) => {
+    setIsScannerOpen(false);
+    if (!isAdmin) return;
+    if (data && isAdmin && isSignedIn) {
+      setLoading(true);
+      try {
+        let parsedData: {
+          mintAddress: string;
+          timestamp: number;
+        };
+        try {
+          parsedData = JSON.parse(data);
+          if (!parsedData.mintAddress) {
+            throw new Error("Invalid data format");
+          }
+          if (Date.now() - parsedData.timestamp > qrCodeValidity) {
+            throw new Error("QR code expired");
+          }
+          // Vérification supplémentaire pour s'assurer que les adresses sont valides
+          if (!/^[A-HJ-NP-Za-km-z1-9]{32,44}$/.test(parsedData.mintAddress)) {
+            throw new Error("Invalid wallet or NFT address format");
+          }
+        } catch (parseError) {
+          console.error("Error parsing QR code data:", parseError);
+          toast.error("Invalid QR code format", {
+            theme: "dark",
+            position: "top-right",
+            autoClose: 5000,
+            hideProgressBar: false,
+            closeOnClick: true,
+            pauseOnHover: true,
+            draggable: false,
+            progress: undefined,
+          });
+          return;
+        }
+        const ticketMint = JSON.parse(data).mintAddress;
+        console.log("Ticket mint:", ticketMint);
+        toast.loading("Activating ticket...", {
+          theme: "dark",
+          position: "top-right",
+          autoClose: 10000,
+        });
+
+        const signature = await rpc?.activateTicket(ticketMint);
+        console.log("Signature:", signature);
+        toast.dismiss();
+        toast.success("Ticket activated successfully", {
+          theme: "dark",
+          position: "top-right",
+          autoClose: 5000,
+        });
+        const { status, expiration } = (await rpc?.getTicketStatus(
+          ticketMint
+        )) as { status: string; expiration: number };
+        console.log(
+          `Updated ticket status: ${status}, expiration: ${expiration}`
+        );
+      } catch (error) {
+        console.error("Error activating ticket:", error);
+        toast.dismiss();
+        toast.error("Failed to activate ticket", {
+          theme: "dark",
+          position: "top-right",
+          autoClose: 5000,
+        });
+      } finally {
+        setLoading(false);
+        setCurrentAdminAction(null);
+      }
+    }
+  };
+
+  const handleChangeTicketPrice = async () => {
+    if (!isAdmin) return;
+    if (!ticketPrice || ticketPrice <= 0) return;
+    setLoading(true);
+    toast.loading("Updating ticket price...", {
+      theme: "dark",
+      position: "top-right",
+      autoClose: 10000,
+    });
+    try {
+      setLoader(true);
+      const priceInLamports = ticketPrice * LAMPORTS_PER_SOL;
+      const signature = await rpc?.updateInitialPrice(priceInLamports);
+      if (signature) {
+        toast.dismiss();
+        toast.success("Ticket price updated successfully", {
+          theme: "dark",
+          position: "top-right",
+          autoClose: 5000,
+        });
+        setIsChangingPrice(false);
+      } else {
+        throw new Error("Failed to update ticket price");
+      }
+    } catch (error) {
+      console.error("Error updating ticket price:", error);
+      toast.error("Failed to update ticket price", {
+        theme: "dark",
+        position: "top-right",
+        autoClose: 5000,
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatSolanaAddress = () => {
@@ -133,8 +386,12 @@ const Login: React.FC<LoginProps> = ({ login, logout, loggedIn, provider }) => {
   useEffect(() => {
     if (theme) {
       handleScanSuccess(theme);
+    } else if (nftToBurn) {
+      handleBurnUserNFT(nftToBurn);
+    } else if (ticketToActivate) {
+      handleActivateTicket(ticketToActivate);
     }
-  }, [theme]);
+  }, [theme, nftToBurn, ticketToActivate]);
 
   return (
     <div className="signUpLoginBox">
@@ -180,27 +437,44 @@ const Login: React.FC<LoginProps> = ({ login, logout, loggedIn, provider }) => {
                       </p>
                     )}
                     <hr />
-                    {loggedIn && (
+                    {loggedIn && isSignedIn && (
                       <div style={{ paddingTop: "10px" }}>
                         {address && (
-                          <div>
-                            <button
-                              className="btnSubmit"
-                              type="button"
-                              onClick={openModal}
-                              disabled={loading || !address}
-                            >
-                              Start a quiz !
-                            </button>
-                            <button
-                              className="btnSubmit"
-                              type="button"
-                              disabled={loading || !address}
-                              onClick={() => router.push("/marketplace")}
-                            >
-                              Reach our Marketplace !
-                            </button>
-                          </div>
+                          <>
+                            <div>
+                              {isAdmin && (
+                                <button
+                                  className="btnSubmit"
+                                  type="button"
+                                  onClick={() => setIsAdminModal(true)}
+                                  disabled={
+                                    loading ||
+                                    !address ||
+                                    !isSignedIn ||
+                                    !isAdmin
+                                  }
+                                >
+                                  Admiral Ops
+                                </button>
+                              )}
+                              <button
+                                className="btnSubmit"
+                                type="button"
+                                onClick={openModal}
+                                disabled={loading || !address}
+                              >
+                                Start a quiz !
+                              </button>
+                              <button
+                                className="btnSubmit"
+                                type="button"
+                                disabled={loading || !address}
+                                onClick={() => router.push("/marketplace")}
+                              >
+                                Reach our Marketplace !
+                              </button>
+                            </div>
+                          </>
                         )}
                         <button
                           className="btnSubmit"
@@ -212,6 +486,131 @@ const Login: React.FC<LoginProps> = ({ login, logout, loggedIn, provider }) => {
                       </div>
                     )}
                   </form>
+                  {isAdmin && isAdminModal && isSignedIn && (
+                    <div className="modalnft">
+                      <div className="modalContentNft">
+                        <h3 style={{ fontSize: "2rem" }}>Admiral Ops</h3>
+                        <hr />
+                        <button
+                          className="btnSubmit"
+                          style={{
+                            fontSize: "1.2rem",
+                            fontFamily: "Final Frontier",
+                          }}
+                          onClick={() => {
+                            setIsScannerOpen(true);
+                            setCurrentAdminAction("activateTicket");
+                          }}
+                          disabled={loading}
+                        >
+                          Activate a Ticket
+                        </button>
+                        <button
+                          className="btnSubmit"
+                          style={{
+                            fontSize: "1.2rem",
+                            fontFamily: "Final Frontier",
+                          }}
+                          onClick={() => {
+                            setIsScannerOpen(true);
+                            setCurrentAdminAction("burnUserNFT");
+                          }}
+                          disabled={loading}
+                        >
+                          Burn a NFT
+                        </button>
+                        <button
+                          className="btnSubmit"
+                          style={{
+                            fontSize: "1.2rem",
+                            fontFamily: "Final Frontier",
+                          }}
+                          onClick={() => setIsChangingPrice(true)}
+                          disabled={loading}
+                        >
+                          Change Ticket Price
+                        </button>
+                        <button
+                          className="btnResult success"
+                          onClick={() => {
+                            setIsAdminModal(false);
+                          }}
+                          style={{
+                            fontSize: "1.2rem",
+                            fontFamily: "Final Frontier",
+                          }}
+                        >
+                          Close
+                        </button>
+                      </div>
+                      {isScannerOpen && (
+                        <>
+                          <div className="overlay"></div>
+                          <div
+                            className="camera-container"
+                            style={{
+                              position: "fixed",
+                              top: "70%",
+                              left: "50%",
+                              transform: "translate(-50%, -50%)",
+                              zIndex: 10000,
+                            }}
+                          >
+                            <Camera topic={currentAdminAction || ""} />
+                            <button
+                              className="btnSubmit"
+                              type="button"
+                              onClick={() => {
+                                setIsScannerOpen(false);
+                                setCurrentAdminAction(null);
+                              }}
+                            >
+                              Close
+                            </button>
+                          </div>
+                        </>
+                      )}
+                      {isChangingPrice && (
+                        <>
+                          <div className="overlay"></div>
+                          <div className="price-change-container">
+                            <input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={ticketPrice || ""}
+                              onChange={(e) =>
+                                setTicketPrice(Number(e.target.value))
+                              }
+                              placeholder="Enter new price in SOL"
+                              className="sci-fi-input"
+                            />
+                            <button
+                              className="btnSubmit"
+                              onClick={handleChangeTicketPrice}
+                              disabled={
+                                ticketPrice === null ||
+                                ticketPrice <= 0 ||
+                                loading ||
+                                !ticketPrice
+                              }
+                            >
+                              Confirm Price Change
+                            </button>
+                            <button
+                              className="btnSubmit"
+                              onClick={() => {
+                                setIsChangingPrice(false);
+                                setTicketPrice(null);
+                              }}
+                            >
+                              Cancel
+                            </button>
+                          </div>
+                        </>
+                      )}
+                    </div>
+                  )}
                 </div>
               )}
               {!loggedIn && (
@@ -263,7 +662,7 @@ const Login: React.FC<LoginProps> = ({ login, logout, loggedIn, provider }) => {
                       </button>
                     ) : (
                       <div className="camera-container">
-                        <Camera />
+                        <Camera topic="quizz" />
                       </div>
                     )}
                     <button
@@ -282,7 +681,6 @@ const Login: React.FC<LoginProps> = ({ login, logout, loggedIn, provider }) => {
           )}
         </div>
       </main>
-      <Footer />
     </div>
   );
 };

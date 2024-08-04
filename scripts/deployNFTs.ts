@@ -61,6 +61,7 @@ async function main() {
       name: fetched.name,
       symbol: fetched.symbol,
       uri: ipfsUrl,
+      uriReceipt: `ipfs://QmZ8v7JT5nXAj1JHDEgY9ojgSEBsiYYk6dd5y4iihUV1sp/${fetched.symbol}R.json`,
     };
   }
 
@@ -185,6 +186,7 @@ async function CreateNFT(metadata: any, amount: number) {
     address: mintNftTokenAccount.publicKey.toBase58(),
     metadataAccount: metadataAccount.toBase58(),
     uri: metadata.uri,
+    uriReceipt: metadata.uriReceipt,
   });
 }
 

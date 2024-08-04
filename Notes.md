@@ -276,8 +276,201 @@ Chaque gemme et nft est un fichier json invividuel, uploadé sur IPFS, en notant
         }
     },
 
-   // Contrairement aux autre, la metadata du ticket est variable concernant la date d'expiration du ticket et sera calculée et transmise par le front-end lors de l'achat.
-   // Ce json n'est donc pas sur IPFS mais est généré par le front-end lors de l'achat.
+  - Reçus des NFT brûlés
+
+{
+    "GQSKLR.json": {
+        "name": "Skip the Line Receipt",
+        "symbol": "GQSKLR",
+        "description": "Receipt for Skip the Line",
+        "image": "ipfs://QmcPnb7D88e2GGhwZF1EmNn6r5ZdLE3L4mrVMwLmbDVxD7",
+        "attributes": [
+            {
+                "trait_type": "Original Gem Cost",
+                "value": "100"
+            }
+        ],
+        "properties": {
+            "creators": [
+                {
+                    "name": "GemQuest"
+                }
+            ],
+            "original_nft": "GQSKL"
+        }
+    },
+
+    "GQVIPR.json": {
+        "name": "VIP Access Receipt",
+        "symbol": "GQVIPR",
+        "description": "Receipt for VIP Access",
+        "image": "ipfs://QmcPnb7D88e2GGhwZF1EmNn6r5ZdLE3L4mrVMwLmbDVxD7",
+        "attributes": [
+            {
+                "trait_type": "Original Gem Cost",
+                "value": "150"
+            }
+        ],
+        "properties": {
+            "creators": [
+                {
+                    "name": "GemQuest"
+                }
+            ],
+            "original_nft": "GQVIP"
+        }
+    },
+
+    "GQGSR.json": {
+        "name": "Gift Shop Receipt",
+        "symbol": "GQGSR",
+        "description": "Receipt for Gift Shop",
+        "image": "ipfs://QmcPnb7D88e2GGhwZF1EmNn6r5ZdLE3L4mrVMwLmbDVxD7",
+        "attributes": [
+            {
+                "trait_type": "Original Gem Cost",
+                "value": "50"
+            }
+        ],
+        "properties": {
+            "creators": [
+                {
+                    "name": "GemQuest"
+                }
+            ],
+            "original_nft": "GQGS"
+        }
+    },
+
+    "GQFDR.json": {
+        "name": "Free Drink Receipt",
+        "symbol": "GQFDR",
+        "description": "Receipt for Free Drink",
+        "image": "ipfs://QmcPnb7D88e2GGhwZF1EmNn6r5ZdLE3L4mrVMwLmbDVxD7",
+        "attributes": [
+            {
+                "trait_type": "Original Gem Cost",
+                "value": "30"
+            }
+        ],
+        "properties": {
+            "creators": [
+                {
+                    "name": "GemQuest"
+                }
+            ],
+            "original_nft": "GQFD"
+        }
+    },
+
+    "GQFSR.json": {
+        "name": "Free Snack Receipt",
+        "symbol": "GQFSR",
+        "description": "Receipt for Free Snack",
+        "image": "ipfs://QmcPnb7D88e2GGhwZF1EmNn6r5ZdLE3L4mrVMwLmbDVxD7",
+        "attributes": [
+            {
+                "trait_type": "Original Gem Cost",
+                "value": "40"
+            }
+        ],
+        "properties": {
+            "creators": [
+                {
+                    "name": "GemQuest"
+                }
+            ],
+            "original_nft": "GQFS"
+        }
+    },
+
+    "GQGPR.json": {
+        "name": "Gift Photo Receipt",
+        "symbol": "GQGPR",
+        "description": "Receipt for Gift Photo",
+        "image": "ipfs://QmcPnb7D88e2GGhwZF1EmNn6r5ZdLE3L4mrVMwLmbDVxD7",
+        "attributes": [
+            {
+                "trait_type": "Original Gem Cost",
+                "value": "40"
+            }
+        ],
+        "properties": {
+            "creators": [
+                {
+                    "name": "GemQuest"
+                }
+            ],
+            "original_nft": "GQGP"
+        }
+    },
+
+    "GQEEAR.json": {
+        "name": "Exclusive Event Access Receipt",
+        "symbol": "GQEEAR",
+        "description": "Receipt for Exclusive Event Access",
+        "image": "ipfs://QmcPnb7D88e2GGhwZF1EmNn6r5ZdLE3L4mrVMwLmbDVxD7",
+        "attributes": [
+            {
+                "trait_type": "Original Gem Cost",
+                "value": "300"
+            }
+        ],
+        "properties": {
+            "creators": [
+                {
+                    "name": "GemQuest"
+                }
+            ],
+            "original_nft": "GQEEA"
+        }
+    },
+
+    "GQTSR.json": {
+        "name": "Gift T-shirt Receipt",
+        "symbol": "GQTSR",
+        "description": "Receipt for Gift T-shirt",
+        "image": "ipfs://QmcPnb7D88e2GGhwZF1EmNn6r5ZdLE3L4mrVMwLmbDVxD7",
+        "attributes": [
+            {
+                "trait_type": "Original Gem Cost",
+                "value": "220"
+            }
+        ],
+        "properties": {
+            "creators": [
+                {
+                    "name": "GemQuest"
+                }
+            ],
+            "original_nft": "GQTS"
+        }
+    },
+
+    "GQGCR.json": {
+        "name": "Gift Cap Receipt",
+        "symbol": "GQGCR",
+        "description": "Receipt for Gift Cap",
+        "image": "ipfs://QmcPnb7D88e2GGhwZF1EmNn6r5ZdLE3L4mrVMwLmbDVxD7",
+        "attributes": [
+            {
+                "trait_type": "Original Gem Cost",
+                "value": "160"
+            }
+        ],
+        "properties": {
+            "creators": [
+                {
+                    "name": "GemQuest"
+                }
+            ],
+            "original_nft": "GQGC"
+        }
+    }
+}
+
+
+  - Ticket d'entrée
 
     "Ticket.json" : {
         "name": "Park Entrance Ticket",

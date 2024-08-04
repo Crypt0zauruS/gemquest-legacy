@@ -5,14 +5,17 @@ import { useTheme } from "../lib/ThemeContext";
 import { ToastContainer, toast } from "react-toastify";
 import { useRouter } from "next/router";
 import gemQuest from "../images/gemquest.webp";
+import RPC from "../services/solanaRPC";
 import Loader from "../components/Loader";
 
 const Welcome = ({
   logout,
   provider,
+  rpc,
 }: {
   logout: () => void;
   provider: any;
+  rpc: RPC;
 }) => {
   const { theme, setTheme, difficulty, setDifficulty, isSignedIn } = useTheme();
   const [quizData, setQuizData] = useState(null);
@@ -136,6 +139,7 @@ const Welcome = ({
               provider={provider}
               setQuizData={setQuizData}
               logout={logout}
+              rpc={rpc}
             />
           )}
         </div>
