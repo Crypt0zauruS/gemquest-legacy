@@ -5,8 +5,8 @@ import AuthService from "../services/auth-service";
 
 export const useAuth = () => {
   const [provider, setProvider] = useState<IProvider | null>(null);
-  const [loggedIn, setLoggedIn] = useState(false);
   const [authService, setAuthService] = useState<AuthService | null>(null);
+  const [loggedIn, setLoggedIn] = useState(false);
 
   const initAuth = useCallback(async () => {
     try {
@@ -14,16 +14,19 @@ export const useAuth = () => {
       const response = await fetch("/api/web3auth");
       const data = await response.json();
       const clientId = data.clientId;
-      // console.log("Web3Auth client ID:", clientId);
       const web3auth = await getWeb3AuthInstance(clientId);
       const authServiceInstance = new AuthService(web3auth);
       setAuthService(authServiceInstance);
 
-      await authServiceInstance.initWeb3authModal();
+      const isConnected = await authServiceInstance.initWeb3authModal();
+      setLoggedIn(isConnected);
+      if (isConnected) {
+        setProvider(web3auth.provider);
+      }
     } catch (error) {
       console.error("Error during initAuth:", error);
     }
-  }, []);
+  }, [setLoggedIn]);
 
   const handleLogin = useCallback(async () => {
     if (!authService) {
@@ -41,7 +44,7 @@ export const useAuth = () => {
     } catch (error) {
       console.error("Error during login:", error);
     }
-  }, [authService]);
+  }, [authService, setLoggedIn]);
 
   const handleLogout = useCallback(async () => {
     if (!authService) {
@@ -56,7 +59,7 @@ export const useAuth = () => {
     } catch (error) {
       console.error("Error during logout:", error);
     }
-  }, [authService]);
+  }, [authService, setLoggedIn]);
 
   return {
     initAuth,

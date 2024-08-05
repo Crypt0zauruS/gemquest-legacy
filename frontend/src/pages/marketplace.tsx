@@ -10,6 +10,7 @@ import { ipfsGateway, gemAddresses, gemTypes } from "../utils";
 import { PublicKey } from "@solana/web3.js";
 import Logout from "../components/Logout";
 import TicketManager from "../components/TicketManager";
+import { useTheme } from "../lib/ThemeContext";
 
 interface LoginProps {
   login: () => Promise<void>;
@@ -55,7 +56,7 @@ const Marketplace: React.FC<LoginProps> = ({
   rpc,
 }) => {
   const router = useRouter();
-
+  const { setIsInQuiz, setIsAdmin } = useTheme();
   const [totalGems, setTotalGems] = useState(0);
   const [error, setError] = useState("");
   const [isModalOpen, setIsModalOpen] = useState(true);
@@ -128,13 +129,15 @@ const Marketplace: React.FC<LoginProps> = ({
   };
 
   useEffect(() => {
-    if (loggedIn && provider) {
-      fetchData();
-    } else {
-      resetData();
-      logout();
-      router.push("/");
-    }
+    (async () => {
+      if (loggedIn && provider) {
+        fetchData();
+      } else {
+        resetData();
+        await logout();
+        router.push("/");
+      }
+    })();
   }, [loggedIn, provider]);
 
   const fetchData = useCallback(async () => {
@@ -173,6 +176,7 @@ const Marketplace: React.FC<LoginProps> = ({
   }, [provider]);
 
   const resetData = () => {
+    setIsAdmin(false);
     setUserGems({
       gem1: 0,
       gem5: 0,
@@ -522,22 +526,7 @@ const Marketplace: React.FC<LoginProps> = ({
     const handlePopState = (event: PopStateEvent) => {
       event.preventDefault();
       console.log("Back button pressed");
-      setTotalGems(0);
-      setGemsMetadata({
-        gem1: {},
-        gem5: {},
-        gem10: {},
-        gem20: {},
-      });
-      setUserGems({
-        gem1: 0,
-        gem5: 0,
-        gem10: 0,
-        gem20: 0,
-      });
-
-      logout();
-      router.push("/");
+      handleBackToHome();
     };
 
     window.addEventListener("popstate", handlePopState);
@@ -545,12 +534,35 @@ const Marketplace: React.FC<LoginProps> = ({
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [logout, router]);
+  }, []);
+
+  const handleBackToHome = () => {
+    setIsInQuiz(false);
+    // Réinitialiser les états liés aux gems si nécessaire
+    setTotalGems(0);
+    setGemsMetadata({
+      gem1: {},
+      gem5: {},
+      gem10: {},
+      gem20: {},
+    });
+    setUserGems({
+      gem1: 0,
+      gem5: 0,
+      gem10: 0,
+      gem20: 0,
+    });
+    router.push("/");
+  };
+
+  useEffect(() => {
+    setIsInQuiz(false);
+  }, [setIsInQuiz]);
 
   return (
     <div>
       <div style={{ marginTop: "15px" }}>
-        <Logout logout={logout} />
+        <Logout logout={logout} onBackToHome={handleBackToHome} />
       </div>
       <ToastContainer />
       <Header />
@@ -665,6 +677,7 @@ const Marketplace: React.FC<LoginProps> = ({
                       margin: "0 auto",
                       cursor: "pointer",
                       marginBottom: "10px",
+                      background: "rgba(0,0,0,0.3)",
                     }}
                     onClick={openRewardsModal}
                   >
@@ -681,6 +694,7 @@ const Marketplace: React.FC<LoginProps> = ({
                       margin: "0 auto",
                       cursor: "pointer",
                       marginBottom: "10px",
+                      background: "rgba(0,0,0,0.3)",
                     }}
                     onClick={openCollectionModal}
                   >
@@ -697,6 +711,7 @@ const Marketplace: React.FC<LoginProps> = ({
                       margin: "0 auto",
                       cursor: "pointer",
                       marginBottom: "10px",
+                      background: "rgba(0,0,0,0.3)",
                     }}
                     onClick={openReceiptsModal}
                   >
@@ -713,6 +728,7 @@ const Marketplace: React.FC<LoginProps> = ({
                       margin: "0 auto",
                       cursor: "pointer",
                       marginBottom: "10px",
+                      background: "rgba(0,0,0,0.3)",
                     }}
                     onClick={() => setIsTicketManagerOpen(true)}
                   >

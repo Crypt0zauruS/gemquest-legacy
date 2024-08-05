@@ -1,4 +1,3 @@
-// lib/ThemeContext.js
 import { createContext, useContext, useState } from "react";
 
 const ThemeContext = createContext();
@@ -9,6 +8,8 @@ export const ThemeProvider = ({ children }) => {
   const [isSignedIn, setIsSignedIn] = useState(false);
   const [nftToBurn, setNftToBurn] = useState(null);
   const [ticketToActivate, setTicketToActivate] = useState(null);
+  const [isInQuiz, setIsInQuiz] = useState(false);
+  const [isAdmin, setIsAdmin] = useState(false);
 
   return (
     <ThemeContext.Provider
@@ -23,6 +24,10 @@ export const ThemeProvider = ({ children }) => {
         setNftToBurn,
         ticketToActivate,
         setTicketToActivate,
+        isInQuiz,
+        setIsInQuiz,
+        isAdmin,
+        setIsAdmin,
       }}
     >
       {children}

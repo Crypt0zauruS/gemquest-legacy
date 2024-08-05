@@ -1,43 +1,40 @@
-import { useState, useEffect } from "react";
-import ReactTooltip from "react-tooltip-rc";
 import { useRouter } from "next/router";
 import { useTheme } from "../../lib/ThemeContext";
+import ReactTooltip from "react-tooltip-rc";
 
-const Logout = ({ logout }) => {
-  const [checked, setChecked] = useState(false);
+const Logout = ({ logout, onBackToHome }) => {
   const router = useRouter();
-  const { setTheme, setDifficulty } = useTheme();
+  const { setTheme, setDifficulty, setIsInQuiz, setIsAdmin, setIsSignedIn } =
+    useTheme();
 
-  useEffect(() => {
-    if (checked) {
-      const performLogout = async () => {
-        setTheme(null);
-        setDifficulty("easy");
-        await logout();
-        router.push("/");
-      };
-      performLogout();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [checked]);
-
-  const handleChange = (e) => {
-    setChecked(e.target.checked);
+  const handleLogout = async () => {
+    setTheme(null);
+    setDifficulty("easy");
+    setIsInQuiz(false);
+    setIsAdmin(false);
+    setIsSignedIn(false);
+    await logout();
+    router.push("/");
   };
 
   return (
     <div className="logoutContainer">
-      <h1
-        className="logoutText"
-        onClick={() => router.push("/")}
-        style={{ cursor: "pointer" }}
+      <button
+        className="logoutButton"
+        onClick={handleLogout}
+        data-tip="Disengage from the system"
       >
-        <p> Logout </p>
-      </h1>
-      {/* <label className="switch">
-        <input onChange={handleChange} type="checkbox" checked={checked} />
-        <span className="slider round" data-tip={`Reset the quiz`}></span>
-      </label> */}
+        <span className="logoutText">Disengage</span>
+        <span className="logoutGlow"></span>
+      </button>
+      <button
+        className="backButton"
+        onClick={onBackToHome}
+        data-tip="Return to main menu"
+      >
+        <span className="backText">Main Menu</span>
+        <span className="backGlow"></span>
+      </button>
       <ReactTooltip place="left" effect="solid" />
     </div>
   );

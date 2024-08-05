@@ -11,21 +11,38 @@ import { useTheme } from "../../lib/ThemeContext";
 
 const Quizz = ({ quizData, setQuizData, provider, logout, rpc }) => {
   const router = useRouter();
+  const { theme, difficulty, setIsInQuiz } = useTheme();
+
+  useEffect(() => {
+    setIsInQuiz(true);
+    return () => setIsInQuiz(false);
+  }, [setIsInQuiz]);
+
+  // useEffect(() => {
+  //   const handleBeforeUnload = (e) => {
+  //     e.preventDefault();
+  //     e.returnValue =
+  //       "Are you sure you want to leave? Your progress will be lost.";
+  //   };
+
+  //   window.addEventListener("beforeunload", handleBeforeUnload);
+
+  //   return () => {
+  //     window.removeEventListener("beforeunload", handleBeforeUnload);
+  //   };
+  // }, []);
 
   if (!quizData?.quizz || quizData.quizz.length === 0) {
-    toast.error(
-      "No quiz available, please check back later or contact support",
-      {
-        theme: "dark",
-        position: "top-right",
-        autoClose: 5000,
-        hideProgressBar: false,
-        closeOnClick: true,
-        pauseOnHover: true,
-        draggable: false,
-        progress: undefined,
-      }
-    );
+    toast.error("Try again", {
+      theme: "dark",
+      position: "top-right",
+      autoClose: 5000,
+      hideProgressBar: false,
+      closeOnClick: true,
+      pauseOnHover: true,
+      draggable: false,
+      progress: undefined,
+    });
     router.push("/");
     return null;
   }
@@ -50,7 +67,6 @@ const Quizz = ({ quizData, setQuizData, provider, logout, rpc }) => {
 
   const [state, setState] = useState(initialState);
   const storedDataRef = useRef();
-  const { theme, difficulty } = useTheme();
 
   useEffect(() => {
     if (typeof window !== "undefined" && !state.pause && !state.quizzEnd) {

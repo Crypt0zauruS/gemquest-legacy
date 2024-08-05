@@ -25,5 +25,5 @@ const ProgressBar = ({ idQuestion, maxQuestions }) => {
     </>
   );
 };
-// eviter aux fonctions de se recharger pour rien
+
 export default memo(ProgressBar);

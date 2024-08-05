@@ -8,10 +8,7 @@ const Header = () => {
   return (
     <header>
       <div className="banner-container">
-      
-        <h1 onClick={() => router.push("/")} style={{ cursor: "pointer" }} data-tip={`Back to Home`}>
-          GemQuest
-        </h1>
+        <h1>GemQuest</h1>
         {isHomePage && (
           <>
             <hr />

@@ -353,8 +353,80 @@ button[disabled]:hover {
 
 /* LOGOUT SWITCH */
 .logoutContainer {
+  position: relative;
   display: flex;
-  justify-content: flex-end;
+  justify-content: space-around;
+}
+
+.logoutButton,
+.backButton {
+  background-color: transparent;
+  box-shadow: 0 0 2px 2px rgb(175, 54, 208);
+  color: rgb(196, 111, 219);
+  padding: 5px 10px;
+  font-size: 14px;
+  border-radius: 5px;
+  font-family: "Orbitron", sans-serif;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: 0.3s;
+  position: relative;
+}
+
+.backButton {
+  box-shadow: 0 0 2px 2px rgb(0, 255, 183);
+  color: rgb(0, 255, 183);
+}
+
+.logoutText,
+.backText {
+  position: relative;
+  z-index: 1;
+}
+
+.logoutGlow,
+.backGlow {
+  position: absolute;
+  top: -10%;
+  left: -10%;
+  width: 120%;
+  height: 120%;
+  filter: blur(20px);
+  opacity: 0;
+  transition: 0.3s;
+}
+
+.logoutGlow {
+  background-color: #0ff;
+}
+
+.backGlow {
+  background-color: #0f0;
+}
+
+.logoutButton:hover,
+.backButton:hover {
+  color: #000;
+}
+
+.logoutButton:hover {
+  text-shadow: 0 0 5px #0ff;
+}
+
+.backButton:hover {
+  text-shadow: 0 0 5px #0f0;
+}
+
+.logoutButton:hover .logoutGlow,
+.backButton:hover .backGlow {
+  opacity: 0.7;
+}
+
+.logoutButton:active,
+.backButton:active {
+  transform: scale(0.95);
 }
 
 .switch {
@@ -952,14 +1024,6 @@ input:checked + .slider:before {
 .loaderText {
   text-align: center;
   color: var(--white-color);
-}
-
-.logoutText {
-  color: var(--red-color);
-  font-size: 0.9rem;
-  font-weight: bold;
-  text-transform: uppercase;
-  margin-right: 15px;
 }
 
 @-webkit-keyframes spin {

@@ -17,7 +17,14 @@ const Welcome = ({
   provider: any;
   rpc: RPC;
 }) => {
-  const { theme, setTheme, difficulty, setDifficulty, isSignedIn } = useTheme();
+  const {
+    theme,
+    setTheme,
+    difficulty,
+    setDifficulty,
+    isSignedIn,
+    setIsInQuiz,
+  } = useTheme();
   const [quizData, setQuizData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [hydrated, setHydrated] = useState(false);
@@ -36,74 +43,29 @@ const Welcome = ({
       const data = await response.json();
       if (response.ok) {
         setQuizData(data.quiz);
-        console.log("quizData after setting:");
+        console.log("quizData after setting:", data.quiz);
       } else {
-        console.error("Failed to generate quiz:");
+        console.error("Failed to generate quiz:", data);
       }
     } catch (error) {
       console.error("Error generating quiz:", error);
     }
-  }, []);
+  }, [theme, difficulty]);
 
-  useEffect(() => {
-    if (!isSignedIn) return;
-    const fetchData = async () => {
-      if (theme) {
-        await generateQuiz();
-        setLoading(false);
-      } else {
-        toast.error(
-          "No quiz available, please check back later or contact support",
-          {
-            theme: "dark",
-            position: "top-right",
-            autoClose: 5000,
-            hideProgressBar: false,
-            closeOnClick: true,
-            pauseOnHover: true,
-            draggable: false,
-            progress: undefined,
-          }
-        );
-        router.push("/");
-      }
-    };
-    fetchData();
-  }, [theme, generateQuiz]);
-
-  // Ensure the component is hydrated before rendering
-  useEffect(() => {
-    setHydrated(true);
-    if (!isSignedIn) {
-      logout();
-      router.push("/");
-    }
-  }, []);
-
-  const handleQuit = () => {
-    setHydrated(false);
+  const handleBackToHome = useCallback(() => {
+    setIsInQuiz(false);
     setTheme(undefined);
     setDifficulty("easy");
-    setQuizData(null);
-    logout();
+    //setQuizData(null);
     router.push("/");
-  };
-
-  const memoizedQuizData = useMemo(() => quizData, [quizData]);
+  }, [setIsInQuiz, setTheme, setDifficulty, router]);
 
   useEffect(() => {
-    console.log("quizData updated:");
-  }, [memoizedQuizData]);
-
-  // Handle back button behavior
-  useEffect(() => {
-    const handlePopState = (event: PopStateEvent) => {
-      event.preventDefault();
-      console.log("Back button pressed");
+    const handlePopState = () => {
+      setIsInQuiz(false);
       setTheme(undefined);
       setDifficulty("easy");
-      setQuizData(null);
-      logout();
+      //setQuizData(null);
       router.push("/");
     };
 
@@ -112,7 +74,47 @@ const Welcome = ({
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [logout, router]);
+  }, [router, setIsInQuiz, setTheme, setDifficulty]);
+
+  useEffect(() => {
+    setHydrated(true);
+    if (!isSignedIn) {
+      handleBackToHome();
+    }
+  }, [isSignedIn, handleBackToHome]);
+
+  useEffect(() => {
+    setIsInQuiz(true);
+    return () => setIsInQuiz(false);
+  }, [setIsInQuiz]);
+
+  useEffect(() => {
+    const fetchData = async () => {
+      if (isSignedIn && theme) {
+        await generateQuiz();
+        setLoading(false);
+      } else if (!theme) {
+        toast.error("Quiz failed", {
+          theme: "dark",
+          position: "top-right",
+          autoClose: 5000,
+          hideProgressBar: false,
+          closeOnClick: true,
+          pauseOnHover: true,
+          draggable: false,
+          progress: undefined,
+        });
+        router.push("/");
+      }
+    };
+    fetchData();
+  }, [theme, generateQuiz, isSignedIn, router]);
+
+  const memoizedQuizData = useMemo(() => quizData, [quizData]);
+
+  useEffect(() => {
+    console.log("quizData updated:", memoizedQuizData);
+  }, [memoizedQuizData]);
 
   if (!hydrated) {
     return null;
@@ -123,7 +125,7 @@ const Welcome = ({
       <ToastContainer />
       {isSignedIn ? (
         <div className="container">
-          <Logout logout={logout} />
+          <Logout logout={logout} onBackToHome={handleBackToHome} />
           {loading ? (
             <Loader
               loadingMsg={"Generating quiz..."}
@@ -149,7 +151,7 @@ const Welcome = ({
             className="btnSubmit"
             style={{ marginTop: "50px", marginBottom: "30px" }}
             type="button"
-            onClick={handleQuit}
+            onClick={handleBackToHome}
           >
             Main Menu
           </button>

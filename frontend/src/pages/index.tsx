@@ -44,10 +44,12 @@ const Login: React.FC<LoginProps> = ({
     isSignedIn,
     nftToBurn,
     ticketToActivate,
+    setIsInQuiz,
+    isAdmin,
+    setIsAdmin,
   } = useTheme();
   const [showScanner, setShowScanner] = useState(false);
   const [hide, setHide] = useState(true);
-  const [isAdmin, setIsAdmin] = useState(false);
   const [isAdminModal, setIsAdminModal] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
   const [currentAdminAction, setCurrentAdminAction] = useState<string | null>(
@@ -57,29 +59,41 @@ const Login: React.FC<LoginProps> = ({
   const [isChangingPrice, setIsChangingPrice] = useState(false);
 
   useEffect(() => {
+    setIsInQuiz(false);
+  }, [setIsInQuiz]);
+
+  useEffect(() => {
     setIsAdmin(false);
     if (provider && loggedIn) {
       setLoader(true);
       try {
         const fetchInfos = async () => {
-          //const rpc = new RPC(provider);
           const address: string = (await rpc?.getAccounts())?.[0] || "";
-          const signature = await rpc?.signMessage(messageToSign);
-          if (!signature) {
-            toast.error("You must sign to enjoy GemQuest", {
-              theme: "dark",
-              position: "top-right",
-              autoClose: 5000,
-              hideProgressBar: false,
-              closeOnClick: true,
-              pauseOnHover: true,
-              draggable: false,
-              progress: undefined,
-            });
-            logout();
-            return;
+
+          if (!isSignedIn) {
+            try {
+              const signature = await rpc?.signMessage(messageToSign);
+              if (!signature) {
+                toast.error("You must sign to enjoy GemQuest", {
+                  theme: "dark",
+                  position: "top-right",
+                  autoClose: 5000,
+                  hideProgressBar: false,
+                  closeOnClick: true,
+                  pauseOnHover: true,
+                  draggable: false,
+                  progress: undefined,
+                });
+                handleLogout();
+                return;
+              } else {
+                setIsSignedIn(true);
+              }
+            } catch (error) {
+              handleLogout();
+              throw new Error("An error occurred while signing message");
+            }
           }
-          setIsSignedIn(true);
           const adminWallet = await rpc?.getAdminWallet();
           if (adminWallet?.publicKey.toBase58() === address) {
             setIsAdmin(true);
@@ -105,7 +119,19 @@ const Login: React.FC<LoginProps> = ({
       setAddress(null);
       setStatus("Resistance is Futile");
     }
-  }, [provider]);
+  }, [provider, loggedIn, rpc, isSignedIn]);
+
+  const handleLogout = async () => {
+    await logout();
+    setIsInQuiz(false);
+    setIsSignedIn(false);
+    setBalance(null);
+    setAddress(null);
+    setStatus("Resistance is Futile");
+    setIsAdmin(false);
+    setTheme(undefined);
+    setDifficulty("easy");
+  };
 
   const openModal = () => {
     setIsModalOpen(true);
@@ -118,6 +144,7 @@ const Login: React.FC<LoginProps> = ({
 
   const handleScanSuccess = (data: string) => {
     if (sciFiThemes.includes(data)) {
+      setIsInQuiz(true);
       router.push({
         pathname: "/welcome",
       });
@@ -145,8 +172,6 @@ const Login: React.FC<LoginProps> = ({
     if (data && isAdmin && isSignedIn) {
       setLoading(true);
       try {
-        //const rpc = new RPC(provider);
-        // Vérification du format des données
         let parsedData: {
           userWallet: string;
           nftMintAddress: string;
@@ -160,7 +185,6 @@ const Login: React.FC<LoginProps> = ({
           if (Date.now() - parsedData.timestamp > qrCodeValidity) {
             throw new Error("QR code expired");
           }
-          // Vérification supplémentaire pour s'assurer que les adresses sont valides
           if (
             !/^[A-HJ-NP-Za-km-z1-9]{32,44}$/.test(parsedData.userWallet) ||
             !/^[A-HJ-NP-Za-km-z1-9]{32,44}$/.test(parsedData.nftMintAddress)
@@ -206,7 +230,6 @@ const Login: React.FC<LoginProps> = ({
             draggable: false,
             progress: undefined,
           });
-          // minting receipt
 
           toast.loading("Minting receipt...", {
             theme: "dark",
@@ -256,7 +279,6 @@ const Login: React.FC<LoginProps> = ({
         });
       } finally {
         setLoading(false);
-
         setCurrentAdminAction(null);
       }
     }
@@ -280,7 +302,6 @@ const Login: React.FC<LoginProps> = ({
           if (Date.now() - parsedData.timestamp > qrCodeValidity) {
             throw new Error("QR code expired");
           }
-          // Vérification supplémentaire pour s'assurer que les adresses sont valides
           if (!/^[A-HJ-NP-Za-km-z1-9]{32,44}$/.test(parsedData.mintAddress)) {
             throw new Error("Invalid wallet or NFT address format");
           }
@@ -376,7 +397,7 @@ const Login: React.FC<LoginProps> = ({
       return "";
     }
     if (address.length <= 10) {
-      return address; // Adresse trop courte pour être formatée
+      return address;
     }
     const firstPart = address.slice(0, 7);
     const lastPart = address.slice(-7);
@@ -416,7 +437,6 @@ const Login: React.FC<LoginProps> = ({
 
               {loggedIn && (
                 <div>
-                  {/* {address && <h2>Account:</h2>} */}
                   <form className="inputBox">
                     {address && (
                       <p style={{ marginTop: "10px" }}>
@@ -479,7 +499,7 @@ const Login: React.FC<LoginProps> = ({
                         <button
                           className="btnSubmit"
                           type="button"
-                          onClick={logout}
+                          onClick={handleLogout}
                         >
                           Logout
                         </button>
